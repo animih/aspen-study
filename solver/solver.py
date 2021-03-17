@@ -1,3 +1,4 @@
+# 1D nonlinear diffusive flow
 import numpy as np
 import time
 
