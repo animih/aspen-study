@@ -231,7 +231,7 @@ def solve(param):
 
             # linear system solve
             t_lin = -time.time()
-            dX = np.linalg.solve(J,   R)
+            dX = np.linalg.solve(J,   -R)
             t_lin += time.time()
             sol.timelog.linsol += t_lin
 
