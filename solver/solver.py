@@ -180,13 +180,6 @@ class classic_solver(solver):
 	            Rx = W[1:self.param.Nx+1] - W[0:self.param.Nx]
 	            Rs = self.q
 	            R = Rt + Rx + Rs
-	            # Jacobian
-	            t_jac = -time.time()
-	            Jt, Jf = self.buildFlow(X,  dt)
-	            t_jac += time.time()
-	            self.timelog.jacbld += t_jac
-	            Jx = self.buildJacobian(Jf,  self.param.Nx)
-	            J = Jt + Jx
 
 	            # convergence
 	            delta = np.linalg.norm(R)
@@ -198,7 +191,7 @@ class classic_solver(solver):
 	            is_converged = is_conv_abs or is_conv_rel
 
 	            if is_converged:
-	                self.timelog.kn[nstep-1] = k
+	                self.timelog.kn[nstep] = k
 	                nstep += 1
 	                t += dt
 	                X[:, 0] = X[:, 1]
@@ -210,6 +203,14 @@ class classic_solver(solver):
 	            elif (k + 1 == kmax):
 	                dt /= 4
 	                break
+
+	            # Jacobian
+	            t_jac = -time.time()
+	            Jt, Jf = self.buildFlow(X,  dt)
+	            Jx = self.buildJacobian(Jf,  self.param.Nx)
+	            t_jac += time.time()
+	            self.timelog.jacbld += t_jac
+	            J = Jt + Jx
 
 	            # linear system solve
 	            t_lin = -time.time()

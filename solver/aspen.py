@@ -15,7 +15,17 @@ class aspen_solver(solver):
             self.Nd = param['Nd']# number of domains
     class TimeLog():
         def __init__(self, Nd = 0, Nt=0):
-            self.loc_log = np.zeros((Nt+1, Nd))
+            self.domain_iters = np.zeros((Nt+1, Nd))
+            self.aspen_iters = np.zeros(Nt+1)
+
+            self.gb_resbld = 0
+
+            self.lc_resbld = np.zeros(Nd)
+            self.lc_jacbld = np.zeros(Nd)
+            self.lc_linsol = np.zeros(Nd)
+
+            self.gb_jacbld = 0
+            self.gb_linsol = 0
 
     def solve(self, debug = False):
         return_code = 0
@@ -39,8 +49,6 @@ class aspen_solver(solver):
         #solution process itself
         R0 = 1
         nstep = 0
-        if(debug):
-            plt.ion()
         while t < 1.0:
             dt = min(dt, 1-t)
             X[:, 1] = X[:, 0]
@@ -59,7 +67,10 @@ class aspen_solver(solver):
             # aspen iterations
             for j in range(max_iter):
                 # Residual
+                t_res = -time.time()
                 Rt, W = self.buildResidual(X, dt)
+                t_res += time.time()
+                self.timelog.gb_resbld += t_res
                 Rx = W[1:self.param.Nx+1] - W[0:self.param.Nx]
                 Rs = self.q
                 R = Rt + Rx + Rs
@@ -77,15 +88,17 @@ class aspen_solver(solver):
                     print('R_norm =', delta)
 
                 if is_converged:
+                    self.timelog.aspen_iters[nstep] = j
                     break
                 elif j == max_iter:
+                    self.timelog.aspen_iters[nstep] = j
                     return_message = 'Aspen not converged'
                     break
 
                 # Newton iteration parameters (local)
                 kmax_lc = 18
-                crit_rel_lc = 1e-4
-                crit_abs_lc = 1e-4
+                crit_rel_lc = 1e-1
+                crit_abs_lc = 1e-3
 
                 # local stage solution is stored here
                 X_local = np.copy(X[:, 1])
@@ -105,17 +118,10 @@ class aspen_solver(solver):
                         t_res = -time.time()
                         Rt, W = self.buildDomainResidual(X[:, 0], X_local_tmp, dt, start, end)
                         t_res += time.time()
-                        #sol.timelog.resbld += t_res
+                        self.timelog.lc_resbld[i] += t_res
                         Rx = W[1:N+1] - W[0:N]
                         Rs = self.q[start:end]
                         R = Rt + Rx + Rs
-                        # Jacobian
-                        t_jac = -time.time()
-                        Jt, Jf = self.buildDomainFlow(X[:, 0], X_local_tmp, dt, start, end)
-                        t_jac += time.time()
-                        #sol.timelog.jacbld += t_jac
-                        Jx = self.buildJacobian(Jf,  N)
-                        J = Jt + Jx 
 
                         # convergence
                         delta = np.linalg.norm(R)
@@ -131,6 +137,8 @@ class aspen_solver(solver):
                             # save to local and roll back
                             X_local[start:end] = X_local_tmp[start:end]
                             X_local_tmp[start:end] = X[start:end, 1]
+                            # save to log
+                            self.timelog.domain_iters[nstep, i] = k
                             if(debug):
                                 out = 'iter: {}, domain: {}, k = {}'.format(j, i, k)
                                 print(out)
@@ -139,14 +147,24 @@ class aspen_solver(solver):
                             # save to local and roll back
                             X_local[start:end] = X_local_tmp[start:end]
                             X_local_tmp[start:end] = X[start:end, 1]
+                            # save to log
+                            self.timelog.domain_iters[nstep, i] = k
                             return_message = 'Local not converged'
                             break
+
+                        # Jacobian
+                        t_jac = -time.time()
+                        Jt, Jf = self.buildDomainFlow(X[:, 0], X_local_tmp, dt, start, end)
+                        t_jac += time.time()
+                        self.timelog.lc_jacbld[i] += t_jac
+                        Jx = self.buildJacobian(Jf,  N)
+                        J = Jt + Jx 
 
                         # linear system solve
                         t_lin = -time.time()
                         dX = np.linalg.solve(J,   -R)
                         t_lin += time.time()
-                        #sol.timelog.linsol += t_lin
+                        self.timelog.lc_linsol[i] += t_lin
 
                         is_weak = np.sum(np.isnan(dX)) + np.sum(np.isinf(dX))
                         if is_weak > 0:
@@ -156,22 +174,18 @@ class aspen_solver(solver):
                         X_local_tmp[start:end] += np.reshape(dX,   N)        
                 # global stage
 
+                t_jac = -time.time()
                 Jx, Dx = self.buildGlobalJacobian(X[:, 1], X_local, domain_borders)
+                t_jac += time.time()
+                self.timelog.gb_jacbld += t_jac
                 Jt = np.eye(self.param.Nx)/dt
                 J, D = Jx+Jt, Dx+Jt
 
-                # debug
-                if(debug):
-                    plt.clf()
-                    plt.title('t = {}'.format(t))
-                    plt.plot(X[:, 1], label='global_prev')
-                    plt.plot(X_local, label = 'loc')
-                    plt.legend()
-                    plt.pause(0.0001)
-                    #plt.show()
-
                 F =  X[:, 1] - X_local
+                t_lin = -time.time()
                 dx = np.linalg.solve(-J, D@F)
+                t_lin += time.time()
+                self.timelog.gb_linsol += t_lin
                 # update
                 X[:, 1] += dx
 
