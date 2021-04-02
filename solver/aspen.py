@@ -15,8 +15,8 @@ class aspen_solver(solver):
             self.Nd = param['Nd']# number of domains
     class TimeLog():
         def __init__(self, Nd = 0, Nt=0):
-            self.domain_iters = np.zeros((Nt, Nd))
-            self.aspen_iters = np.zeros(Nt)
+            self.domain_iters = np.zeros((Nt+1, Nd))
+            self.aspen_iters = np.zeros(Nt+1)
 
             self.gb_resbld = 0
 
@@ -90,7 +90,7 @@ class aspen_solver(solver):
                 if is_converged:
                     self.timelog.aspen_iters[nstep] = j
                     break
-                elif j == max_iter:
+                elif j+1 == max_iter:
                     self.timelog.aspen_iters[nstep] = j
                     return_message = 'Aspen not converged'
                     break
