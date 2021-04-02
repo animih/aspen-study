@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
 	part = partion.partion_equally
 	solver = aspen_solver(param, D, part)
-	solver.setBoundary(0, 0)
+	solver.setBoundary(1, 1)
 	solver.setInitial(0.5, 2, 1)
 	solver.setSources([0.6], [0])
 

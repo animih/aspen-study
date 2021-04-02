@@ -15,8 +15,8 @@ class aspen_solver(solver):
             self.Nd = param['Nd']# number of domains
     class TimeLog():
         def __init__(self, Nd = 0, Nt=0):
-            self.domain_iters = np.zeros((Nt+1, Nd))
-            self.aspen_iters = np.zeros(Nt+1)
+            self.domain_iters = np.zeros((Nt, Nd))
+            self.aspen_iters = np.zeros(Nt)
 
             self.gb_resbld = 0
 

@@ -44,7 +44,7 @@ class classic_solver(solver):
 	        self.linsol = linsol
 	        self.resbld = resbld
 	        self.jacbld = jacbld
-	        self.kn = np.zeros((Nt+1))
+	        self.kn = np.zeros((Nt))
 	def calcFluxRes(self, X, i):
 	    val = 0
 	    if self.bc.first:
