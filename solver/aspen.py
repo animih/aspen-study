@@ -15,8 +15,8 @@ class aspen_solver(solver):
             self.Nd = param['Nd']# number of domains
     class TimeLog():
         def __init__(self, Nd = 0, Nt=0):
-            self.domain_iters = np.zeros((Nt+1, Nd))
-            self.aspen_iters = np.zeros(Nt+1)
+            self.domain_iters = np.zeros(Nd)
+            self.aspen_iters = np.zeros(Nt)
 
             self.gb_resbld = 0
 
@@ -34,8 +34,7 @@ class aspen_solver(solver):
         # time settings
         t = 0.0
         dt = 1./self.param.Nt
-        dt_min = dt
-        dt_max = dt
+        dt_min = dt*1e-3
 
         # initial condition
         X = np.concatenate((self.x0, self.x0), axis=1)
@@ -46,19 +45,19 @@ class aspen_solver(solver):
         # tempery storgae for domain
         X_local_tmp = np.zeros(self.param.Nx)
 
+        #initial condition
+        self.X[:, 0] = self.x0.flatten()
+
         #solution process itself
         R0 = 1
         nstep = 0
         while t < 1.0:
-            dt = min(dt, 1-t)
+            dt = min(dt, self.t[nstep+1]-t)
             X[:, 1] = X[:, 0]
 
-            self.t[nstep] = t
-            self.X[:, nstep] = X[:, 0]
-
             # max number of aspen iterations
-            max_iter = 25
-            crit_rel = 1e-1
+            max_iter = 4
+            crit_rel = 1e-2
             crit_abs = 1e-3
 
             # partion strategy
@@ -88,16 +87,17 @@ class aspen_solver(solver):
                     print('R_norm =', delta)
 
                 if is_converged:
-                    self.timelog.aspen_iters[nstep] = j
+                    self.timelog.aspen_iters[nstep] += j
+                    X[:, 0] = X[:, 1]
+                    t += dt
                     break
                 elif j+1 == max_iter:
-                    self.timelog.aspen_iters[nstep] = j
-                    return_message = 'Aspen not converged'
+                    dt /= 4
                     break
 
                 # Newton iteration parameters (local)
                 kmax_lc = 18
-                crit_rel_lc = 1e-1
+                crit_rel_lc = 1e-3
                 crit_abs_lc = 1e-3
 
                 # local stage solution is stored here
@@ -138,7 +138,7 @@ class aspen_solver(solver):
                             X_local[start:end] = X_local_tmp[start:end]
                             X_local_tmp[start:end] = X[start:end, 1]
                             # save to log
-                            self.timelog.domain_iters[nstep, i] = k
+                            self.timelog.domain_iters[i] += k
                             if(debug):
                                 out = 'iter: {}, domain: {}, k = {}'.format(j, i, k)
                                 print(out)
@@ -189,9 +189,19 @@ class aspen_solver(solver):
                 # update
                 X[:, 1] += dx
 
-            X[:, 0] = X[:, 1]
-            t += dt
-            nstep += 1
+            if (not is_converged):
+                if dt < dt_min:
+                    return_message = 'Global not converged'
+                    break
+
+            if self.t[nstep+1] == t:
+                self.X[:, nstep+1] = X[:, 0]
+                nstep += 1
+                # not sure about next step...
+                dt = 1./self.param.Nt
+
+        self.timelog.domain_iters /= self.param.Nt
+            
         return self.X, return_code, return_message
 
     # from start to end, non-including last
@@ -339,3 +349,150 @@ class aspen_solver(solver):
                 J2 = Jf[i+1, 1]
                 Jx[i, i+1] = J2
         return Jx
+
+    def perform_a_step(self, X_prev): # for debugging needs only
+        # time settings
+        t = 0.0
+        dt = 1./self.param.Nt
+        t_end = dt-t
+        dt_min = dt*1e-3
+
+        X_prev = np.reshape(X_prev, (-1, 1))
+        X = np.concatenate((X_prev, X_prev), axis = 1)
+
+        # local stage solution is stored here
+        X_local = np.zeros(self.param.Nx)
+
+        # tempery storgae for domain
+        X_local_tmp = np.zeros(self.param.Nx)
+
+        #solution process itself
+        R0 = 1
+        iters = 0
+        while t < t_end:
+            dt = min(dt, t_end-t)
+            dt_min = dt*1e-3
+            X[:, 1] = X[:, 0]
+
+            # max number of aspen iterations
+            max_iter = 4
+            crit_rel = 1e-2
+            crit_abs = 1e-3
+
+            # partion strategy
+            domain_borders = self.partion(self.param.Nx, self.param.Nd)
+
+            # aspen iterations
+            for j in range(max_iter):
+                # Residual
+                Rt, W = self.buildResidual(X, dt)
+                Rx = W[1:self.param.Nx+1] - W[0:self.param.Nx]
+                Rs = self.q
+                R = Rt + Rx + Rs
+
+                # convergence
+                delta = np.linalg.norm(R)
+                if j == 0:
+                    R0 = delta
+
+                is_conv_abs = (delta * dt) <= crit_abs
+                is_conv_rel = delta <= (crit_rel*R0)
+                is_converged = is_conv_abs or is_conv_rel
+
+                if is_converged:
+                    iters += j
+                    X[:, 0] = X[:, 1]
+                    t += dt
+                    break
+                elif j+1 == max_iter:
+                    dt /= 4
+                    break
+
+                # Newton iteration parameters (local)
+                kmax_lc = 18
+                crit_rel_lc = 1e-3
+                crit_abs_lc = 1e-3
+
+                # local stage solution is stored here
+                X_local = np.copy(X[:, 1])
+
+                # tempery storgae for domain
+                X_local_tmp = np.copy(X[:, 1])
+
+                # for every domain do (local stage) :
+                for i in range(self.param.Nd):
+                    # boundaries of the partions
+                    start = domain_borders[i]
+                    end = domain_borders[i+1]
+                    N = end-start
+
+                    for k in range(kmax_lc):
+                        # Domain Residual
+                        Rt, W = self.buildDomainResidual(X[:, 0], X_local_tmp, dt, start, end)
+                        Rx = W[1:N+1] - W[0:N]
+                        Rs = self.q[start:end]
+                        R = Rt + Rx + Rs
+
+                        # convergence
+                        delta = np.linalg.norm(R)
+                        if k == 0:
+                            R0 = delta
+
+                        is_conv_abs = (delta * dt) <= crit_abs_lc
+                        is_conv_rel = delta <= (crit_rel_lc*R0)
+                        is_converged = is_conv_abs or is_conv_rel
+
+                        # if local solution is found
+                        if is_converged:
+                            # save to local and roll back
+                            X_local[start:end] = X_local_tmp[start:end]
+                            X_local_tmp[start:end] = X[start:end, 1]
+                            break
+                        elif (k + 1 == kmax_lc):
+                            # save to local and roll back
+                            X_local[start:end] = X_local_tmp[start:end]
+                            X_local_tmp[start:end] = X[start:end, 1]
+                            break
+
+                        # Jacobian
+                        Jt, Jf = self.buildDomainFlow(X[:, 0], X_local_tmp, dt, start, end)
+                        Jx = self.buildJacobian(Jf,  N)
+                        J = Jt + Jx 
+
+                        # linear system solve
+                        dX = np.linalg.solve(J,   -R)
+
+                        is_weak = np.sum(np.isnan(dX)) + np.sum(np.isinf(dX))
+                        if is_weak > 0:
+                            dX[:] = 0
+
+                        # update
+                        X_local_tmp[start:end] += np.reshape(dX,   N)        
+                # global stage
+
+                plt.title('local stage, iter= {}, t = {}'.format(iters+j+1, t))
+                for bord in domain_borders:
+                    plt.axvline(bord/self.param.Nx, linestyle='--', color='r')
+                plt.plot(np.linspace(0, 1, self.param.Nx), X_local-X_prev.flatten(), label = 'local-prev')
+                plt.legend()
+                plt.show()
+
+                Jx, Dx = self.buildGlobalJacobian(X[:, 1], X_local, domain_borders)
+                Jt = np.eye(self.param.Nx)/dt
+                J, D = Jx+Jt, Dx+Jt
+
+                F =  X[:, 1] - X_local
+                dx = np.linalg.solve(-J, D@F)
+                # update
+                X[:, 1] += dx
+
+                plt.title('global stage, iter = {}, t ={}'.format(iters+j+1, t))
+                plt.plot(np.linspace(0, 1, self.param.Nx), X[:, 1]-X_prev.flatten(), label = 'global-prev')
+                plt.legend()
+                plt.show()
+
+            if (not is_converged):
+                if dt < dt_min:
+                    break
+            
+        return X[:, 1], iters
