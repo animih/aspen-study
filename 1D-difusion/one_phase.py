@@ -13,7 +13,7 @@ class solver():
     def __init__(self, param, diffusion):
         self.param = self.Parameters(param)
         self.X = np.zeros((self.param.Nx, self.param.Nt+1))
-        self.t = np.arange(self.param.Nt+1)/self.param.Nt # fixed
+        self.t = np.arange(self.param.Nt+1)/self.param.Nt
         self.D = diffusion
         self.bc = self.Boundary(0, 0)
         self.x0 = np.zeros((self.param.Nx, 1))
@@ -34,37 +34,34 @@ class solver():
 
 class one_phase(solver):
     log_init = False
-    def __init__(self, param, diffusion, nonlin_solver):
+    def __init__(self, param, diffusion, nonlin_solver, bd_ch = None):
         super(one_phase, self).__init__(param, diffusion)
-
         self.solver = nonlin_solver
         self.func = self.spec_func(self)
-
-    def init_log(self, show = True):
+        if bd_ch == None:
+            self.dyn_bd = False
+        else:
+            self.dyn_bd = True
+            self.bd_ch = bd_ch
+    def init_log(self):
         self.log_init = True
-        
         if type(self.solver).__name__ == 'aspen':
-            if show :
-                print('ASPEN log initialized')
             self.timelog = self.aspen_log(self.solver.Nd, self.param.Nt)
+            if(self.dyn_bd):
+                self.timelog.borders = np.zeros((self.solver.Nd+1, 5))
+                self.timelog.borders[:, 0] = self.solver.partion
         elif type(self.solver).__name__ == 'newton':
-            if show :
-                print('newton log initialized')
             self.timelog = self.newton_log(self.param.Nt)
         else:
             pass
-
     class aspen_log():
         def __init__(self, Nd = 0, Nt = 0):
             self.domain_iters = np.zeros(Nd)
             self.aspen_iters = np.zeros(Nt)
-
             self.gb_res = 0
-
             self.lc_res = np.zeros(Nd)
             self.lc_jac = np.zeros(Nd)
             self.lc_lin = np.zeros(Nd)
-
             self.gb_jac = 0
             self.gb_lin = 0
         def update(self, solver, nstep):
@@ -91,25 +88,19 @@ class one_phase(solver):
             self.jac += solver.jac
             self.kn[nstep] += solver.k
 
-
     def solve(self):
-        return_code = 0
         return_message = 'OK'
 
         # time settings
         t = 0.0
         dt = 1/self.param.Nt
         dt_min = dt*1e-3
-
         # initial condition
         self.X[:, 0] = self.x0.flatten()
-
         # solution process itself
         R0 = 1
         nstep = 0
-
         crit_abs = np.copy(self.solver.crit_abs)
-
         X = np.copy(self.x0)
         self.X_cur = np.copy(self.x0)
 
@@ -139,11 +130,14 @@ class one_phase(solver):
                 self.X[:, nstep+1] = self.X_cur.flatten()
                 nstep += 1
                 dt = 1/self.param.Nt
+                if self.dyn_bd and (nstep % (self.param.Nt//5) == 0) and nstep != self.param.Nt:
+                    self.solver.partion = self.bd_ch(self.solver.partion, self.X[:, nstep+1], steps = 10)
+                    self.timelog.borders[:, nstep*5//self.param.Nt] = self.solver.partion
 
         if type(self.solver).__name__ == 'aspen':
             self.timelog.domain_iters /= self.param.Nt
 
-        return self.X, return_code, return_message
+        return self.X, return_message
 
     def FluxRes(self, X, i):
         val = 0

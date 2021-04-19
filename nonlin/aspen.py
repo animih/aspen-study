@@ -15,19 +15,15 @@ class aspen():
         self.crit_abs = crit_abs
         self.max_gb = max_gb
         self.max_lc = max_lc
-
         self.newton = newton.newton(crit_rel, max_lc, crit_abs)
 
     def init_log(self):
         self.log_init = True
-
         self.gb_iters = 0
         self.lc_iters = np.zeros(self.Nd)
-
         self.gb_res = 0
         self.gb_jac = 0
         self.gb_lin = 0
-
         self.lc_res = np.zeros(self.Nd)
         self.lc_jac = np.zeros(self.Nd)
         self.lc_lin = np.zeros(self.Nd)
@@ -43,14 +39,12 @@ class aspen():
         def jac(self, X):
             return self.f.jac_loc(X, self.X_prev, self.start, self.end)
 
-
     def solve(self, f, X0):
 
         converged = False
         X = np.copy(X0)
 
         domain_borders = self.partion
-
         f_l = self.local_func(f, X, 0, 0)
 
         for j in range(self.max_gb):
