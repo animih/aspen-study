@@ -51,18 +51,24 @@ def partion_equally(Nx, Nd):
 
     return res
 
-# spectral bisection (proves to be bad in out prob)
-def spec_bis(A):
-	N = A.shape[0]
-	D = np.diag(A @ np.ones(N))
-	L = D - A
+# spectral bisection
+def spec_bis(A, inv = False):
+    N = A.shape[0]
+    D = np.diag(A @ np.ones(N))
+    L = D - A
+    if inv:
+        Dinv = np.linalg.inv(D)
 
-	w, v = np.linalg.eig(L)
-	w[np.argmin(w)] = np.inf
-	ind = np.argmin(w)
-	solution = (v[ind] > 0)
+    if inv:
+        w, v = np.linalg.eig(Dinv@L)
+        w = np.abs(w)
+    else:
+        w, v = np.linalg.eig(L)
+    w[np.argmin(w)] = np.inf
+    ind = np.argmin(w)
+    solution = (v[ind] > 0)
 
-	return v[ind]
+    return v[ind]
 
 # local search
 # heating imitation 1D
