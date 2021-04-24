@@ -2,23 +2,14 @@
 import numpy as np
 import inspect
 import matplotlib.pyplot as plt
+import time
 
-def time(clas):   
-    if type(clas).__name__ == 'aspen_log':
-        t = clas.gb_res+clas.gb_jac \
-      +clas.gb_lin+np.sum(clas.lc_res) \
-      +np.sum(clas.lc_jac)+np.sum(clas.lc_lin)
-    elif type(clas).__name__ == 'newton_log':
-        t = clas.lin+clas.jac+clas.res
-    
-    return t
-
-def decorator1(obj):
+def test_decorator(obj):
     def wraper(*args, **kwargs):
         print('test started')
-        solver, X, message, time = obj(*args, **kwargs)
+        solver, X, mes, t = obj(*args, **kwargs)
         print('verdict : ' + message)
-        print('mean time : {}'.format(time))
+        print('mean time : {}'.format(t))
 
         if type(solver.timelog).__name__ == 'newton_log':
             print('mean newton iterations: ', np.mean(solver.timelog.kn))
@@ -28,17 +19,16 @@ def decorator1(obj):
         return X, message, time
     return wraper
 
-@decorator1
-def calc(solver, x0, bd1, bd2, sample_size = 10):
+def test(solver, x0, sample_size = 10):
     t = 0
-    for k in range(1):
+    for k in range(sample_size):
         solver.init_log()
-        solver.setBoundary(bd1, bd2)
-        solver.x0 = np.copy(x0)
-        X, message = solver.solve()
-        t += time(solver.timelog)
-    t /= 1#sample_size
-    return solver, X, message, t
+        t += time.time()
+        X, mes = solver.solve()
+        t -= time.time()
+    t /= sample_size
+
+    return solver, X, mes, t
 
 def show_res(solver):
     x = np.linspace(0, 1, solver.param.Nx)
@@ -74,10 +64,10 @@ def compare(list_of_solvers, list_of_names):
     plt.show()
 
 def decorator2(obj):
-    def wraper(start_bd, m_sim, metrics, l_solver):
+    def wraper(start_bd, metrics, l_solver):
         print('--before--')
         print(start_bd, '{:.2E}'.format(metrics(start_bd)))
-        bd = obj(start_bd, m_sim, metrics, l_solver)
+        bd = obj(start_bd, metrics, l_solver)
         print('--after--')
         opt = metrics(bd)
         print(bd, '{:.2E}'.format(opt))
@@ -85,10 +75,10 @@ def decorator2(obj):
     return wraper
 
 @decorator2
-def local_search(start_bd, m_sim, metrics, l_solver):
+def local_search(start_bd, metrics, l_solver):
     borders = np.copy(start_bd)
-    borders = l_solver.find(borders, m_sim, metrics, steps = 120)
-    borders = l_solver.find(borders, m_sim, metrics, steps = 80, cl = False)
-    borders = l_solver.find(borders, m_sim, metrics, steps = 120)
+    borders = l_solver.find(borders, metrics, steps = 220)
+    borders = l_solver.find(borders, metrics, steps = 180, cl = False)
+    borders = l_solver.find(borders, metrics, steps = 220)
 
     return borders

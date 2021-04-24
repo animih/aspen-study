@@ -90,6 +90,7 @@ class one_phase(solver):
 
     def solve(self):
         return_message = 'OK'
+        self.solver.init_func(self.func)
 
         # time settings
         t = 0.0
@@ -111,7 +112,7 @@ class one_phase(solver):
             if self.log_init:
                 self.solver.init_log()
 
-            X, mes = self.solver.solve(self.func, X)
+            X, mes = self.solver.solve(X)
 
             if not(mes):
                 dt /= 4
@@ -134,8 +135,10 @@ class one_phase(solver):
                     self.solver.partion = self.bd_ch(self.solver.partion, self.X[:, nstep+1], steps = 10)
                     self.timelog.borders[:, nstep*5//self.param.Nt] = self.solver.partion
 
-        if type(self.solver).__name__ == 'aspen':
+        if type(self.solver).__name__ == 'aspen' and self.log_init:
             self.timelog.domain_iters /= self.param.Nt
+
+        self.solver.crit_abs = crit_abs
 
         return self.X, return_message
 
@@ -154,30 +157,6 @@ class one_phase(solver):
             x = max(delta[0], delta[1])
             mult = self.D.model(x)
             val = - self.D.val[i]*self.param.Nx**2 * mult[0] * (delta[0] - delta[1])
-        else:
-            pass
-        return val
-
-    def locFluxRes(self, X, X_prev, i, start, end):
-        val = 0
-        if self.bc.first:
-            delta = np.zeros((2, 1))
-            if start+i == 0:
-                delta[0] = X[i]
-                delta[1] = self.bc.val[0]
-            elif start+i == self.param.Nx:
-                delta[0] = self.bc.val[1]
-                delta[1] = X[i - 1]
-            else:
-                if i == 0:
-                    delta = np.array([X[0], X_prev[start-1]])
-                elif  i == end-start:
-                    delta = np.array([X_prev[end], X[i-1]])
-                else:
-                    delta = np.array([X[i], X[i - 1]])
-            x = max(delta[0], delta[1])
-            mult = self.D.model(x)
-            val = - self.D.val[start+i]*self.param.Nx**2 * mult[0] * (delta[0] - delta[1])
         else:
             pass
         return val
@@ -225,174 +204,64 @@ class one_phase(solver):
             pass
         return val
 
-    def locFluxJac(self, X, X_prev, i, start, end):
-        val = np.zeros((1, 2))
-        if self.bc.first:
-            delta = np.zeros((2, 1))
-            if start+i == 0:
-                delta[0] = self.bc.val[1]
-                delta[1] = X[i]
-            elif start+i == self.param.Nx:
-                delta[0] = X[i-1]
-                delta[1] = self.bc.val[1]
-            else:
-                if i == 0:
-                    delta[0] = X_prev[start-1]
-                    delta[1] = X[0]
-                elif i == end-start:
-                    delta[0] = X[i-1]
-                    delta[1] = X_prev[end]
-                else:
-                    delta[0] = X[i-1]
-                    delta[1] = X[i]
-            imax = 0
-            if delta[1] >= delta[0]:
-                imax = 1
-            x = delta[imax]
-            mult = self.D.model(x)
-            for j in range(2):
-                x_dx = 0
-                if imax == j:
-                    x_dx = mult[1]
-
-                d_dx = -1
-                if j == 1:
-                    d_dx = 1
-
-                if start+i == 0:
-                    if imax == 0:
-                        x_dx = 0
-                    if j == 0:
-                        d_dx = 0
-                elif start+i == self.param.Nx:
-                    if imax == 1:
-                        x_dx = 0
-                    if j == 1:
-                        d_dx = 0
-
-                val[0,j] = -self.D.val[start+i] * self.param.Nx**2*(x_dx *   (delta[1]-delta[0])+mult[0]*d_dx)
-        else:
-            pass
-        return val
-
     class spec_func():
 
         def __init__(self, outer_instance):
 
             self.outer = outer_instance
-            self.dt = 1/self.outer.param.Nt
 
-        def val(self, X):
-            N = self.outer.param.Nx
-            Rt = (X - self.outer.X_cur) / self.dt
-            Rt = np.reshape(Rt,   (N,   1))
-            Rx = np.zeros((N, 1))
-            for i in range(N):
-                Rx[i] = self.outer.FluxRes(X, i+1) - self.outer.FluxRes(X, i)
-            Rs = self.outer.q
+            self.dt = 1/outer_instance.param.Nt
+            self.N = outer_instance.param.Nx
 
-            return Rt + Rx + Rs
+            self.Jf = np.zeros((self.N+1, 2))
+            self.Jx = np.zeros((self.N, self.N))
+            self.Jt = np.eye(self.N)
 
-        def jac(self, X):
+            self.gb_Jx = np.zeros((self.N, self.N))
 
-            N = self.outer.param.Nx
-            Jx = np.zeros((N, N))
-            Jt = np.eye(N)/self.dt
-            Jf = np.zeros((N+1, 2))
-            for i in range(N+1):
-                Jf[i, :] = self.outer.FluxJac(X, i)
+            self.Rt = np.zeros((self.N, 1))
+            self.Rx = np.zeros((self.N, 1))
 
-            for i in range(N):
-                if i != 0:
-                    J1 = Jf[i, 0]
-                    Jx[i, i-1] = - J1
-                J1 = Jf[i, 1]
-                J2 = Jf[i+1, 0]
-                Jx[i, i] = J2-J1
-                if i + 1 != N:
-                    J2 = Jf[i+1, 1]
-                    Jx[i, i+1] = J2
+            self.res_f = lambda X, i: outer_instance.FluxRes(X, i+1) - outer_instance.FluxRes(X, i)
+            self.jac_f = outer_instance.FluxJac
 
-            return Jx + Jt
+        def val(self, X, st = 0, end = None):
+            if end == None:
+                end = self.N
+            np.subtract(X[st:end], self.outer.X_cur[st:end], out = self.Rt[st:end, :])
 
+            for i in range(st, end):
+                self.Rx[i, :] = self.res_f(X, i)
 
-        def val_loc(self, X, X_prev, start, end):
-            Rt = (X - self.outer.X_cur[start:end]) / self.dt
-            N = end - start
-            Rt = np.reshape(Rt,   (N,   1))
-            Rx = np.zeros((N, 1))
-            Rs = self.outer.q[start:end]
+            return self.Rt[st:end]/self.dt + self.Rx[st:end] + self.outer.q[st:end]
 
-            for i in range(0, N):
-                Rx[i] = self.outer.locFluxRes(X, X_prev, i+1, start, end) \
-                    - self.outer.locFluxRes(X, X_prev, i, start, end)
+        def jac(self, X, st = 0, end = None):
+            if end == None:
+                end = self.N
+            for i in range(st, end+1):
+                self.Jf[i, :] = self.jac_f(X, i)
 
-            return Rt + Rx + Rs
+            for i in range(st, end):
+                if i != st:
+                    J1 = self.Jf[i, 0]
+                    self.Jx[i, i-1] = - J1
+                J1 = self.Jf[i, 1]
+                J2 = self.Jf[i+1, 0]
+                self.Jx[i, i] = J2-J1
+                if i + 1 != end:
+                    J2 = self.Jf[i+1, 1]
+                    self.Jx[i, i+1] = J2
 
-        def jac_loc(self, X, X_prev, start, end):
-
-            N = end - start
-            Jx = np.zeros((N, N))
-            Jt = np.eye(N)/self.dt
-            Jf = np.zeros((N+1, 2))
-            for i in range(N+1):
-                Jf[i, :] = self.outer.locFluxJac(X, X_prev, i, start, end)
-
-            for i in range(N):
-                if i != 0:
-                    J1 = Jf[i, 0]
-                    Jx[i, i-1] = - J1
-                J1 = Jf[i, 1]
-                J2 = Jf[i+1, 0]
-                Jx[i, i] = J2-J1
-                if i + 1 != N:
-                    J2 = Jf[i+1, 1]
-                    Jx[i, i+1] = J2
-
-            return Jx + Jt
+            return self.Jx[st:end, st:end] + self.Jt[st:end, st:end]/self.dt
             
 
-        def jac_gb(self, X, X_l, domain_borders):
-            N = self.outer.param.Nx
-            Jx, Dx = np.zeros((N, N)), np.zeros((N, N))
-            Jt = np.eye(N)/self.dt
+        def jac_gb(self, X_gb_prev, domain_borders):
 
-            k = 0
-            left_bd = domain_borders[k]
-            right_bd = domain_borders[k+1]
+            self.gb_Jx = np.copy(self.Jx)
 
-            Jf_new = np.zeros((N+ 1, 2))
-            for i in range(N+1):
-                Jf_new[i, :] = self.outer.FluxJac(X_l, i)
+            for bd in domain_borders[1:-1]:
+                tmp = self.jac_f(X_gb_prev, bd)
+                self.gb_Jx[bd, bd-1] = -tmp[0][0]
+                self.gb_Jx[bd-1, bd] = tmp[0][1]
 
-            for i in range(N):
-                # change of domain
-                if i == right_bd:
-                    k += 1
-                    left_bd = domain_borders[k]
-                    right_bd = domain_borders[k+1]
-
-                if i != 0:
-                    if i != left_bd:
-                        J1 = Jf_new[i, 0]
-                        Jx[i, i-1] = -J1
-                        Dx[i, i-1] = Jx[i, i-1]
-                    else:
-                        J1 = self.outer.FluxJac(X, i)[0, 0]
-                        Jx[i, i-1] = -J1
-
-                J1 = Jf_new[i, 1]
-                J2 = Jf_new[i + 1, 0]
-                Jx[i, i] = J2 - J1
-                Dx[i, i] = Jx[i, i]
-
-                if i + 1 != N:
-                    if i+1 != right_bd:
-                        J2 = Jf_new[i+1, 1]
-                        Jx[i, i+1] = J2
-                        Dx[i, i+1] = Jx[i, i+1]
-                    else:
-                        J2 = self.outer.FluxJac(X, i+1)[0, 1]
-                        Jx[i, i+1] = J2
-
-            return Jx+Jt, Dx+Jt
+            return self.gb_Jx+self.Jt/self.dt, self.Jx+self.Jt/self.dt # J & D

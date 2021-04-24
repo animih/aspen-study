@@ -17,15 +17,21 @@ class newton():
         self.jac = 0
         self.lin = 0
 
-    def solve(self, f, X0):
+    def init_func(self, f):
+        self.f = f
+
+    def solve(self, X, aspen = False):
 
         converged = False
-        X = np.copy(X0)
+
+        if aspen:
+            bg = self.f.start
+            en = self.f.end
 
         for k in range(self.kmax):
             # residual
             t_res = - time()
-            R = f.val(X)
+            R = self.f.val(X)
             t_res += time()
 
             if(self.log_init):
@@ -46,7 +52,7 @@ class newton():
 
             # jacobian
             t_jac = - time()
-            J = f.jac(X)
+            J = self.f.jac(X)
             t_jac += time()
 
             if(self.log_init):
@@ -54,7 +60,10 @@ class newton():
 
             # lin solve
             t_lin = - time()
-            X += np.linalg.solve(J, -R)
+            if aspen:
+                X[bg:en] += np.linalg.solve(J, -R)
+            else:
+                X += np.linalg.solve(J, -R)
             t_lin += time()
             
             if(self.log_init):
@@ -62,5 +71,8 @@ class newton():
 
         if(self.log_init):
             self.k += k
+
+        if aspen:
+            return X[bg:en], converged
 
         return X, converged

@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     # aspen init
     domains = partion.partion_equally(Nx, Nd)
-    nl_solver = newton(1e-2, kmax = 14, crit_abs = 1e-3)
+    nl_solver = aspen(Nd, domains, 1e-2, crit_abs = 1e-3)
 
 
     # solver init
@@ -48,5 +48,5 @@ if __name__ == "__main__":
     solver.setInitial(0.5, 2, 1)
     solver.setSources([0.6], [0])
 
-    X, mes, code= solver.solve()
-    print(X, mes, code)
+    X, mes= solver.solve()
+    print(X, mes)

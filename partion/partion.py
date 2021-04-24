@@ -1,33 +1,27 @@
 import numpy as np
 
 # simply two aproaches for minimization functions
-def metrics1(borders, cut, alpha = 1):
-    f_cut = np.vectorize(cut)(borders[1:-1])
-    reg = (borders[1:]-borders[:-1])**alpha
+def metrics1(borders, weights):
+    Nd = borders.shape[0]-1
+    val = 0
+    for i in range(Nd):
+        beg = borders[i]
+        end = borders[i+1]
+        val += np.sum(weights[end:, beg:end])/(end-beg)
 
-    return np.sum((f_cut[1:]+f_cut[:-1])/reg[1:-1] \
-        + f_cut[-1]/reg[-1] + f_cut[0]/reg[0])
+    return val
 
-def metrics2(borders, cut, weights, alpha = 1):
-    f_cut = np.vectorize(cut)(borders[1:-1])
-    reg = np.array([np.sum(weights[bd1:bd2, bd1:bd2]) 
-        for bd1, bd2 in zip(borders[:-1], borders[1:])])**alpha
+def metrics2(borders, weights):
+    Nd = borders.shape[0]-1
+    val = 0
+    for i in range(Nd):
+        beg = borders[i]
+        end = borders[i+1]
+        val += np.sum(weights[end:, beg:end])/np.sum(weights[beg:end, beg:end])
 
-    return np.sum((f_cut[1:]+f_cut[:-1])/reg[1:-1] \
-        + f_cut[-1]/reg[-1] + f_cut[0]/reg[0])
+    return val
 
 # some of proposed metrics
-def m1(solver, x, bd):
-    value  = (np.abs(solver.FluxJac(x, bd)[0, 1]) \
-                +np.abs(solver.FluxJac(x, bd)[0, 0]))
-    return value
-def m2(solver, X, bd, Nt, t_step):
-    fr = X[bd-1, ::t_step].T
-    sc = X[bd, ::t_step].T
-    tmp = np.stack((fr, sc), axis = 0)
-    cov = np.cov(tmp)
-    val = np.abs(cov[0][1]/np.sqrt(cov[0][0]*cov[1][1]))
-    return val
 def m3(solver, x, bd, Nt):
     dt = 1/Nt
 
@@ -40,6 +34,59 @@ def m3(solver, x, bd, Nt):
         -kkk[0, 1]))
     
     return tmp/val
+
+def precompute_Jf(solver, X, N):
+    Jf = np.zeros((N+1, 2))
+    for i in range(N+1):
+        Jf[i, :] = solver.FluxJac(X, i)
+    return Jf
+
+def m2(solver, X, i, j, t_step = 5):
+    fr = X[i, ::t_step].T
+    sc = X[j, ::t_step].T
+    tmp = np.stack((fr, sc), axis = 0)
+    cov = np.cov(tmp)
+    val = np.abs(cov[0][1]/np.sqrt(cov[0][0]*cov[1][1]))
+    #val = cov[0][1]
+    return val
+
+def m1(solver, Jf, i, j):
+    if i == j:
+        return solver.param.Nt+Jf[i+1, 0] \
+            - Jf[i, 1]
+    elif i - j == 1:
+        return - Jf[i, 0]
+    elif j - i == 1:
+        return Jf[i+1, 1]
+    else:
+        return 0
+
+# a fancy func to construct adjencity matrix
+# also chain rule can be used to dense the matrix
+def adj_matrix(m_ij, Nx , sc = 0, EPS = 1e-3):
+    f = np.vectorize(m_ij)
+    if sc:
+        main = f(np.arange(Nx), np.arange(Nx))
+        tmp1 = f(np.arange(Nx-1), np.arange(1, Nx))
+        tmp2 = f(np.arange(1, Nx), np.arange(Nx-1))
+        out =  np.diag(main) + np.diag(tmp1, k = 1) + \
+            np.diag(tmp2, k = -1)
+        if sc > 1:
+            tmp =  -np.linalg.inv(out) @ out.T
+            out = out @ tmp.T
+    else:
+        out = np.diag(np.vectorize(m_ij)(np.arange(Nx), np.arange(Nx)))
+
+        for i in range(Nx-1):
+            out[i, i+1:] = 2*np.vectorize(m_ij)(i*np.ones(Nx-i-1, dtype='int'),
+                np.arange(Nx-i-1))
+
+    # to work with nondirected, positive weighted graph
+    out = np.abs(out)
+    out = 1/2*(out+out.T)
+
+    return out
+
 
 # only 1D is considered
 
@@ -56,17 +103,15 @@ def spec_bis(A, inv = False):
     N = A.shape[0]
     D = np.diag(A @ np.ones(N))
     L = D - A
-    if inv:
-        Dinv = np.linalg.inv(D)
 
     if inv:
+        Dinv = np.linalg.inv(D)
         w, v = np.linalg.eig(Dinv@L)
-        w = np.abs(w)
+        #w = np.abs(w)
     else:
         w, v = np.linalg.eig(L)
     w[np.argmin(w)] = np.inf
     ind = np.argmin(w)
-    solution = (v[ind] > 0)
 
     return v[ind]
 
@@ -77,7 +122,7 @@ class heat_1D():
         self.T0 = T0
         self.T = T0
         self.alpha = alpha
-    def find(self, borders, m_simple, metrics, steps=50, cl = True):
+    def find(self, borders, metrics, steps=50, cl = True):
         nd = borders.shape[0]-1
 
         prev_val = metrics(borders)
@@ -89,20 +134,14 @@ class heat_1D():
         for k in range(steps):
             for i in range(1, nd):
 
-            	for k in range(2):
-	                xi = np.random.randint(-1, 1)
-	                val_prev = m_simple(borders[i])
+                for k in range(2):
+                    xi = np.random.randint(-1, 1)
 
-	                if borders[i]+xi != borders[i+1] and borders[i]+xi != borders[i-1]:
-	                    val = m_simple(borders[i]+xi)
-	                    if val < val_prev:
-	                        borders[i] += xi
-	                        break
-	                    elif np.random.random() < np.exp(-(val-val_prev)/np.abs(val_prev*self.T)):
-	                        borders[i] += xi
-	                        break
-	                    
-	                xi = - xi
+                    if borders[i]+xi != borders[i+1] and borders[i]+xi != borders[i-1]:
+                        borders[i]+= xi
+                        break
+                        
+                    xi = - xi
 
             val = metrics(borders)
 
@@ -119,9 +158,9 @@ class heat_1D():
                 best_borders = np.copy(borders)
                 best_val = np.copy(val)
             if cl:
-            	self.decrease()
+                self.decrease()
             else:
-            	self.increase()
+                self.increase()
 
         return prev_borders
 
