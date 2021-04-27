@@ -4,11 +4,21 @@ import inspect
 import matplotlib.pyplot as plt
 import time
 
+def tim(clas):   
+    if type(clas).__name__ == 'aspen_log':
+        t = clas.gb_res+clas.gb_jac \
+      +clas.gb_lin+np.sum(clas.lc_res) \
+      +np.sum(clas.lc_jac)+np.sum(clas.lc_lin)
+    elif type(clas).__name__ == 'newton_log':
+        t = clas.lin+clas.jac+clas.res
+    
+    return t
+
 def test_decorator(obj):
     def wraper(*args, **kwargs):
         print('test started')
         solver, X, mes, t = obj(*args, **kwargs)
-        print('verdict : ' + message)
+        print('verdict : ' + mes)
         print('mean time : {}'.format(t))
 
         if type(solver.timelog).__name__ == 'newton_log':
@@ -16,16 +26,16 @@ def test_decorator(obj):
         elif type(solver.timelog).__name__ == 'aspen_log':
             print('mean aspen iterations: ', np.mean(solver.timelog.aspen_iters))
 
-        return X, message, time
+        return X, mes, t
     return wraper
 
-def test(solver, x0, sample_size = 10):
+def test(solver, x0, sample_size = 5):
     t = 0
     for k in range(sample_size):
         solver.init_log()
-        t += time.time()
-        X, mes = solver.solve()
         t -= time.time()
+        X, mes = solver.solve()
+        t += time.time()
     t /= sample_size
 
     return solver, X, mes, t
@@ -59,9 +69,10 @@ def compare(list_of_solvers, list_of_names):
             plt.plot(solver.timelog.aspen_iters, label=name)
         elif  type(solver.solver).__name__ == 'newton':
             plt.plot(solver.timelog.kn, label=name)
-        print(name+ ' :', time(solver.timelog) )
+        print(name+ ' :', tim(solver.timelog) )
     plt.legend()
     plt.show()
+
 
 def decorator2(obj):
     def wraper(start_bd, metrics, l_solver):
