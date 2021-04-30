@@ -45,8 +45,8 @@ class aspen():
         self.f_l = self.local_func(f, f.N)
         self.X_l = np.zeros((f.N, 1))
 
-        size = np.max(self.partion[1:]-self.partion[:-1])
-        self.buf = np.zeros((size, 1))
+        #size = np.max(self.partion[1:]-self.partion[:-1])
+        self.buf = np.zeros((f.N, 1))
 
         self.newton.init_func(self.f_l)
 
@@ -80,7 +80,9 @@ class aspen():
                 self.X_l[start:end], mes = self.newton.solve(X, aspen = True)
 
                 X[start:end] = self.buf[:end-start]
+
                 if not(mes):
+                    print(i, j)
                     return X, mes
 
                 if(self.log_init):

@@ -46,20 +46,29 @@ def m1(solver, Jf, i, j):
     if i == j:
         return 0
     elif i - j == 1:
-        return - 1/Jf[i, 0]
+        return np.abs(1/Jf[i, 0]) + np.abs(1/Jf[i, 1])
     elif j - i == 1:
-        return 1/Jf[i+1, 1]
+        return np.abs(1/Jf[i+1, 1]) + np.abs(1/Jf[i+1, 0])
     else:
         return 0
-def m3(solver, Jf, i, j):
-    dt = 1/solver.param.Nt
+
+def m3(solver, Jf, Jf_n, i, j):
     if i - j == 1:
-        t1 = np.abs(1/dt+Jf[i+1, 0] - Jf[i, 1]) \
-            + np.abs(1/dt + Jf[i, 0] - Jf[i-1, 1])
-        t2 = np.abs(Jf[i, 0]) + np.abs(Jf[i, 1])
-        return t1 / t2
-    if j - i == 1:
-        return 0
+        dt = 1/solver.param.Nt
+        t1 = np.abs(1/dt+Jf[i+1, 0] - Jf[i, 1])
+        t2 = np.abs(Jf[i+1, 0] - Jf[i, 1] \
+            -Jf_n[i+1, 0] + Jf_n[i, 1])
+        t3 = np.abs(Jf[i, 0]) + np.abs(Jf[i, 1])
+        t4 = np.abs(Jf[j+1, 0] - Jf[j, 1] \
+            -Jf_n[j+1, 0] + Jf_n[j, 1])
+        return np.abs(Jf[i, 1])*t2/t1**2\
+            + np.abs(Jf[i, 0])*t4/t3**2
+    if i == j:
+        dt = 1/solver.param.Nt
+        t1 = np.abs(1/dt+Jf[i+1, 0] - Jf[i, 1])
+        t2 = np.abs(Jf[i+1, 0] - Jf[i, 1] \
+            -Jf_n[i+1, 0] + Jf_n[i, 1])
+        return (t2**2/t1**4)
     else:
         return 0
 
@@ -69,25 +78,18 @@ def m3(solver, Jf, i, j):
 def adj_matrix(m_ij, Nx, dense = 0):
     f = np.vectorize(m_ij)
 
-    #main = f(np.arange(Nx), np.arange(Nx))
-    tmp1 = f(np.arange(Nx-1), np.arange(1, Nx))
-    tmp2 = f(np.arange(1, Nx), np.arange(Nx-1))
-    out =  np.diag(tmp1, k = 1) + \
-        np.diag(tmp2, k = -1)
+    main = f(np.arange(Nx), np.arange(Nx))
+    tmp1 = f(np.arange(1, Nx), np.arange(Nx-1))
+    out =  np.diag(tmp1, k = -1)+np.diag(main)
 
     if dense:
         #main = f(np.arange(Nx), np.arange(Nx))
         #out += np.diag(main)
         for k in range(2, dense+2):
             tmp1 = f(np.arange(Nx-k), np.arange(k, Nx))
-            tmp2 = f(np.arange(k, Nx), np.arange(Nx-k))
-            out +=  np.diag(tmp1, k = k) + \
-                np.diag(tmp2, k = -k)
-    
+            out +=  np.diag(tmp1, k = -k)
 
-    # to work with nondirected, positive weighted graph
-    out = np.abs(out)
-    out = 1/2*(out+out.T)
+    out += out.T
 
     return out
 
@@ -155,14 +157,15 @@ def domain_builder2(A, Nd, inv = False, k = 5):
 
     w, v = spec_bis(A, inv = inv, k = k+1)
     # dropout trivial solution
-    w = w[1:].numpy()
-    v = v[:, 1:].numpy()
+    v = v.numpy()
 
-    for i in range(k):
+    v[:, 0] = np.linspace(-1, 1, Nx)
+
+    for i in range(0, k):
         v[:, i] /= np.sqrt(np.sum(v[:, i]**2/Nx))
 
     # (optional) uncomment for visualization
-    # usally smth like deformated Lissague figures
+    # usally smth like deformed Lissague figures appear
     '''
     for v1, v2 in zip(v[:, :-1].T, v[:, 1:].T):
         plt.scatter(v1.T, v2.T)
@@ -174,13 +177,17 @@ def domain_builder2(A, Nd, inv = False, k = 5):
     #print(kmeans.cluster_centers_)
     
     borders = [0]
-    k = 0
+    j = 0
+    flag = True
     for i in range(1, Nx):
         if lb[i] != lb[i-1]:
-            borders.append(i)
-            k += 1
-        if k == Nd-1:
-            break
+            if j < Nd-1 or True:
+                borders.append(i)
+            j += 1
+        if j > Nd-1 and flag:
+            print('clustering alg returned more borders than declared, more domains should be considered')
+            flag = False
+            #break
 
     borders.append(Nx)
     borders = np.sort(borders)

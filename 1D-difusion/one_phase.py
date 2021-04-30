@@ -131,8 +131,8 @@ class one_phase(solver):
                 self.X[:, nstep+1] = self.X_cur.flatten()
                 nstep += 1
                 dt = 1/self.param.Nt
-                if self.dyn_bd and (nstep % (self.param.Nt//5) == 0) and nstep != self.param.Nt:
-                    self.solver.partion = self.bd_ch(self.solver.partion, self.X[:, nstep+1], steps = 10)
+                if self.dyn_bd and (nstep % (self.param.Nt//10) == 0) and nstep != self.param.Nt:
+                    self.solver.partion = self.bd_ch(self.X[:, nstep-10:nstep], self.solver.Nd)
                     self.timelog.borders[:, nstep*5//self.param.Nt] = self.solver.partion
 
         if type(self.solver).__name__ == 'aspen' and self.log_init:
