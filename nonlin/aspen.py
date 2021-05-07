@@ -5,7 +5,7 @@ from time import time
 class aspen():
     log_init = False
 
-    def __init__(self, Nd, domain_borders, crit_rel, crit_abs = 0, max_gb = 3, max_lc = 12):
+    def __init__(self, Nd, domain_borders, crit_rel, crit_abs = 0, max_gb = 4, max_lc = 12):
 
         self.Nd = Nd
         self.partion = domain_borders
@@ -45,8 +45,8 @@ class aspen():
         self.f_l = self.local_func(f, f.N)
         self.X_l = np.zeros((f.N, 1))
 
-        size = np.max(self.partion[1:]-self.partion[:-1])
-        self.buf = np.zeros((size, 1))
+        #size = np.max(self.partion[1:]-self.partion[:-1])
+        self.buf = np.zeros((f.N, 1))
 
         self.newton.init_func(self.f_l)
 
@@ -62,6 +62,7 @@ class aspen():
                 self.gb_res += t_res_gb
             # convergence
             delta = np.linalg.norm(R)
+
             if j == 0:
                 R0 = delta
             is_conv_abs = delta <= self.crit_abs
@@ -80,6 +81,7 @@ class aspen():
                 self.X_l[start:end], mes = self.newton.solve(X, aspen = True)
 
                 X[start:end] = self.buf[:end-start]
+
                 if not(mes):
                     return X, mes
 

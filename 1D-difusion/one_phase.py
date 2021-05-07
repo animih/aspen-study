@@ -50,6 +50,7 @@ class one_phase(solver):
             if(self.dyn_bd):
                 self.timelog.borders = np.zeros((self.solver.Nd+1, 5))
                 self.timelog.borders[:, 0] = self.solver.partion
+                self.timelog.bd_time = 0
         elif type(self.solver).__name__ == 'newton':
             self.timelog = self.newton_log(self.param.Nt)
         else:
@@ -104,7 +105,17 @@ class one_phase(solver):
         crit_abs = np.copy(self.solver.crit_abs)
         X = np.copy(self.x0)
         self.X_cur = np.copy(self.x0)
-
+        
+        if self.dyn_bd:
+            self.func.reset_jac(self.solver.partion)
+            #self.solver.partion = self.bd_ch(self, self.x0, self.solver.Nd)
+            #print(self.solver.partion)
+            if self.log_init :
+                bd_t = -time()
+                self.timelog.borders[:, 0] = self.solver.partion
+                bd_t += time()
+                self.timelog.bd_time += bd_t
+        
         while t < 1.0:
             dt = min(dt, self.t[nstep+1]-t)
             self.solver.crit_abs = crit_abs/dt
@@ -131,9 +142,15 @@ class one_phase(solver):
                 self.X[:, nstep+1] = self.X_cur.flatten()
                 nstep += 1
                 dt = 1/self.param.Nt
-                if self.dyn_bd and (nstep % (self.param.Nt//5) == 0) and nstep != self.param.Nt:
-                    self.solver.partion = self.bd_ch(self.solver.partion, self.X[:, nstep+1], steps = 10)
-                    self.timelog.borders[:, nstep*5//self.param.Nt] = self.solver.partion
+                if self.dyn_bd and (nstep % (self.param.Nt//4) == 0) and nstep != self.param.Nt:
+                    self.func.reset_jac(self.solver.partion)
+                    bd_t = -time()
+                    self.solver.partion = self.bd_ch(self, self.X[:, nstep-self.param.Nt//4:nstep], self.solver.Nd)
+                    bd_t += time()
+                    self.timelog.bd_time += bd_t
+                    
+                    if self.log_init :
+                        self.timelog.borders[:, nstep*5//self.param.Nt] = self.solver.partion
 
         if type(self.solver).__name__ == 'aspen' and self.log_init:
             self.timelog.domain_iters /= self.param.Nt
@@ -253,11 +270,18 @@ class one_phase(solver):
                     self.Jx[i, i+1] = J2
 
             return self.Jx[st:end, st:end] + self.Jt[st:end, st:end]/self.dt
+
+        def reset_jac(self, borders):
+            for i in range(borders.shape[0]-1):
+                bg = borders[i]
+                end = borders[i+1]
+                self.Jx[bg:end, bg:end] = 0
             
 
         def jac_gb(self, X_gb_prev, domain_borders):
 
             self.gb_Jx = np.copy(self.Jx)
+
 
             for bd in domain_borders[1:-1]:
                 tmp = self.jac_f(X_gb_prev, bd)
