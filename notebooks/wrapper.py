@@ -29,7 +29,7 @@ def test_decorator(obj):
         return X, mes, t
     return wraper
 
-def test(solver, x0, sample_size = 5):
+def test(solver, sample_size = 5):
     t = 0
     for k in range(sample_size):
         solver.init_log()
@@ -40,7 +40,7 @@ def test(solver, x0, sample_size = 5):
 
     return solver, X, mes, t
 
-def show_res(solver):
+def show_res(solver, save=None):
     x = np.linspace(0, 1, solver.param.Nx)
     plt.figure(figsize= (8, 6))
     plt.xlabel('x')
@@ -49,14 +49,26 @@ def show_res(solver):
     t = solver.t
     x_grid, t_grid = np.meshgrid(x, t)
     if type(solver.solver).__name__ == 'aspen':
-        for bd in solver.solver.partion[1:-1]:
-            plt.axvline(bd/solver.param.Nx, linestyle = '--', color='k')
+        if not(solver.dyn_bd):
+            for bd in solver.solver.partion[1:-1]:
+                plt.axvline(bd/solver.param.Nx, linestyle = '--', color='k')
+        else:
+            for i in range(4):
+                for bd in solver.timelog.borders[:, i]:
+                    plt.plot([bd/solver.param.Nx, bd/solver.param.Nx], 
+                        [0.25*i, 0.25*(i+1)],
+                        linestyle = '--', color='k')
+            for i in range(4):
+                plt.axhline(0.25*i, linestyle = '--', color='k')
+
         print('iters :', solver.timelog.domain_iters)
     cs = plt.contourf(x_grid, t_grid, solver.X.T, cmap='RdBu_r')
     cbar = plt.colorbar(cs)
+    if save != None:
+        plt.savefig(save, dpi=400)
     plt.show()
 
-def compare(list_of_solvers, list_of_names):
+def compare(list_of_solvers, list_of_names, save=None):
     title = ''
 
     for i in range(len(list_of_names)-1):
@@ -71,6 +83,8 @@ def compare(list_of_solvers, list_of_names):
             plt.plot(solver.timelog.kn, label=name)
         print(name+ ' :', tim(solver.timelog) )
     plt.legend()
+    if save != None:
+        plt.savefig(save, dpi=400)
     plt.show()
 
 
