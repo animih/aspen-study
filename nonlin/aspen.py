@@ -2,10 +2,12 @@ import newton
 import numpy as np
 from time import time
 
+import matplotlib.pyplot as plt
+
 class aspen():
     log_init = False
 
-    def __init__(self, Nd, domain_borders, crit_rel, crit_abs = 0, max_gb = 4, max_lc = 12):
+    def __init__(self, Nd, domain_borders, crit_abs=1e-4, crit_rel = 0, max_gb = 6, max_lc = 25):
 
         self.Nd = Nd
         self.partion = domain_borders
@@ -13,12 +15,12 @@ class aspen():
         self.crit_abs = crit_abs
         self.max_gb = max_gb
         self.max_lc = max_lc
-        self.newton = newton.newton(crit_rel, max_lc, crit_abs)
+        self.newton = newton.newton(crit_abs, crit_rel, max_lc)
 
     def init_log(self):
         self.log_init = True
         self.gb_iters = 0
-        self.lc_iters = np.zeros(self.Nd)
+        self.lc_iters = np.zeros(self.Nd, dtype='int')
         self.gb_res = 0
         self.gb_jac = 0
         self.gb_lin = 0
@@ -71,6 +73,7 @@ class aspen():
             if converged:
                 break
             for i in range(self.Nd):
+
                 if(self.log_init):
                     self.newton.init_log()
                 start = self.partion[i]
@@ -99,9 +102,9 @@ class aspen():
             if(self.log_init):
                 self.gb_jac += t_jac_gb
 
+
             F = X - self.X_l
 
-            # lin solve
             t_lin_gb = - time()
             X += np.linalg.solve(-J, D@F)
             t_lin_gb += time()

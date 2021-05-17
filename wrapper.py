@@ -29,12 +29,12 @@ def test_decorator(obj):
         return X, mes, t
     return wraper
 
-def test(solver, sample_size = 5):
+def test(solver, sample_size = 5, tmax = 1):
     t = 0
     for k in range(sample_size):
         solver.init_log()
         t -= time.time()
-        X, mes = solver.solve()
+        X, mes = solver.solve(tmax)
         t += time.time()
     t /= sample_size
 
@@ -45,7 +45,10 @@ def show_res(solver, save=None):
     plt.figure(figsize= (8, 6))
     plt.xlabel('x')
     plt.ylabel('t')
-    plt.title('Newton method')
+    if type(solver.solver).__name__ == 'aspen':
+        plt.title('ASPEN')
+    else:
+        plt.title('Newton')
     t = solver.t
     x_grid, t_grid = np.meshgrid(x, t)
     if type(solver.solver).__name__ == 'aspen':
@@ -61,9 +64,24 @@ def show_res(solver, save=None):
             for i in range(4):
                 plt.axhline(0.25*i, linestyle = '--', color='k')
 
-        print('iters :', solver.timelog.domain_iters)
     cs = plt.contourf(x_grid, t_grid, solver.X.T, cmap='RdBu_r')
     cbar = plt.colorbar(cs)
+    if save != None:
+        plt.savefig(save, dpi=400)
+    plt.show()
+
+def bar_loc(solver, Nd, save = None):
+
+    plt.title('mean iters')
+    
+    plt.bar(np.arange(1, Nd+1), np.mean(solver.timelog.domain_iters, axis = 1))
+    if save != None:
+        plt.savefig(save, dpi=400)
+    plt.show()
+
+def bar_loc_step(solver, Nd, step, save = None):
+    plt.title('liters on step = {}'.format(step))
+    plt.bar(np.arange(1, Nd+1), solver.timelog.domain_iters[:, step])
     if save != None:
         plt.savefig(save, dpi=400)
     plt.show()

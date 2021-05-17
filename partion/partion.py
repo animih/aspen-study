@@ -6,17 +6,9 @@ import matplotlib.pyplot as plt
 
 from time import time
 
-# simply two aproaches for minimization functions
+# some of proposed ways to regulize
 
-def metrics0(borders, weights):
-    Nd = borders.shape[0]-1
-    val = 0
-    for i in range(Nd):
-        beg = borders[i]
-        end = borders[i+1]
-        val += np.sum(weights[end:, beg:end])
-    return val
-
+# reg by domian size |V|
 def metrics1(borders, weights):
     Nd = borders.shape[0]-1
     val = 0
@@ -27,6 +19,7 @@ def metrics1(borders, weights):
 
     return val
 
+# reg by domain weight S(V)
 def metrics2(borders, weights):
     Nd = borders.shape[0]-1
     val = 0
@@ -36,45 +29,6 @@ def metrics2(borders, weights):
         val += np.sum(weights[end:, beg:end])/np.sum(weights[beg:end, beg:end])
 
     return val
-
-# some of proposed metrics
-
-def precompute_Jf(solver, X, N):
-    Jf = np.zeros((N+1, 2))
-    for i in range(N+1):
-        Jf[i, :] = solver.FluxJac(X, i)
-    return Jf
-
-def m2(X, i, j, t_step = 5):
-    fr = X[i, ::t_step].T
-    sc = X[j, ::t_step].T
-    tmp = np.stack((fr, sc), axis = 0)
-    cov = np.cov(tmp)
-    val = np.abs(cov[0][1]/np.sqrt(cov[0][0]*cov[1][1]))
-    #val = cov[0][1]
-    return val
-
-def m1(Jf, i, j):
-    if i - j == 1:
-        return np.abs(1/Jf[i, 0]) + np.abs(1/Jf[i, 1])
-    else:
-        return 0
-
-def m3(solver, Jf, Jf_n, i, j):
-    if i - j == 1:
-        dt = 1/solver.param.Nt
-        t1 = np.abs(1/dt+Jf[i+1, 0] - Jf[i, 1])
-        t2 = np.abs(Jf[i+1, 0] - Jf[i, 1] \
-            -Jf_n[i+1, 0] + Jf_n[i, 1])
-        t3 = np.abs(Jf[i, 0]) + np.abs(Jf[i, 1])
-        t4 = np.abs(Jf[j+1, 0] - Jf[j, 1] \
-            -Jf_n[j+1, 0] + Jf_n[j, 1])
-        return np.abs(Jf[i, 1])*t2/t1**2\
-            + np.abs(Jf[i, 0])*t4/t3**2
-    elif i == j:
-        return 1
-    else:
-        return 0
 
 
 # a fancy func to construct adjencity matrix
@@ -133,12 +87,11 @@ def spec_bis(A, inv = False, k = 2, X = None):
     L = D - Ad
     
     if inv:
-        w, v = torch.lobpcg(L, k = k, B = D, X=X, tol=1e-4, largest = False)
+        w, v = torch.lobpcg(L, k = k, B = D, X=X, largest = False)
         #w = np.abs(w)
     else:
-        w, v = torch.lobpcg(L, k = k, X=X, tol=1e-4, largest = False)
+        w, v = torch.lobpcg(L, k = k, X=X, largest = False)
     #w[np.argmin(w)] = np.inf
-
     return w, v
 
 def domain_builder1(A, Nd, inv = False):
@@ -187,7 +140,7 @@ def domain_builder2(A, Nd, inv = False, k = 5, X = None):
     # usally smth like deformed Lissague figures appear
     '''
     for v1, v2 in zip(v[:, :-1].T, v[:, 1:].T):
-        plt.scatter(v1.T, v2.T)
+        plt.plot(v2.T)
         plt.show()
     '''
     

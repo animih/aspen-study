@@ -5,7 +5,7 @@ class newton():
 
     log_init = False
 
-    def __init__(self, crit_rel, kmax = 12, crit_abs=0):
+    def __init__(self, crit_abs=1e-4, crit_rel = 0, kmax = 25):
         self.kmax = kmax
         self.crit_rel = crit_rel
         self.crit_abs = crit_abs
