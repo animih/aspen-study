@@ -7,15 +7,16 @@ import matplotlib.pyplot as plt
 class aspen():
     log_init = False
 
-    def __init__(self, Nd, domain_borders, crit_abs=1e-4, crit_rel = 0, max_gb = 6, max_lc = 25):
+    def __init__(self, Nd, domain_borders, crit_abs=1e-4, newton_crit_rel = 0, max_gb = 8, max_lc = 25):
 
         self.Nd = Nd
-        self.partion = domain_borders
-        self.crit_rel = crit_rel
+        self.partion = np.copy(domain_borders)
+        self.crit_rel = 0
         self.crit_abs = crit_abs
         self.max_gb = max_gb
         self.max_lc = max_lc
-        self.newton = newton.newton(crit_abs, crit_rel, max_lc)
+        
+        self.newton = newton.newton(crit_abs, newton_crit_rel, max_lc)
 
     def init_log(self):
         self.log_init = True

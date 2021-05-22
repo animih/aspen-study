@@ -30,7 +30,7 @@ class fxbd_1D():
         else:
             self.dyn_bd = True
             self.bd_ch = bd_ch
-            self.freq_ch = 5
+            self.freq_ch = 4
 
     def setBoundary(self, left, right):
         self.bc = self.Boundary(left, right)
@@ -83,7 +83,7 @@ class fxbd_1D():
         if type(self.solver).__name__ == 'aspen':
             self.timelog = self.aspen_log(self.solver.Nd, self.param.Nt)
             if(self.dyn_bd):
-                self.timelog.borders = np.zeros((self.solver.Nd+1, 5))
+                self.timelog.borders = np.zeros((self.solver.Nd+1, self.freq_ch+1))
                 self.timelog.borders[:, 0] = self.solver.partion
                 self.timelog.bd_time = 0
         elif type(self.solver).__name__ == 'newton':
@@ -108,7 +108,6 @@ class fxbd_1D():
         crit_abs = np.copy(self.solver.crit_abs)
         X = np.copy(self.x0)
         self.X_cur = np.copy(X)
-
         while t < tmax:
             dt = min(dt, self.t[nstep+1]-t)
             self.prob.update(dt, self.X_cur, self.bc, self.q)
@@ -142,15 +141,16 @@ class fxbd_1D():
                 self.X[:, nstep+1] = self.X_cur.flatten()
                 nstep += 1
                 dt = 1/self.param.Nt
-                if self.dyn_bd and (nstep % (self.param.Nt//freq_ch) == 0) and nstep != self.param.Nt:
-                    self.func.reset_jac(self.solver.partion)
+                if self.dyn_bd and (nstep % (self.param.Nt//self.freq_ch) == 0) and nstep < self.param.Nt-1:
+                    self.prob.func.reset_jac(self.solver.partion)
                     bd_t = -time()
-                    self.solver.partion = self.bd_ch(self, self.X, nstep, self.solver.Nd)
+                    self.solver.partion = self.bd_ch(self.prob, self.X, nstep, self.solver.Nd)
                     bd_t += time()
                     self.timelog.bd_time += bd_t
                   
                     if self.log_init :
-                        self.timelog.borders[:, nstep*freq_ch//self.param.Nt] = self.solver.partion
+                        self.timelog.borders[:, nstep*self.freq_ch//self.param.Nt+1] = self.solver.partion
+                        
 
         self.solver.crit_abs = crit_abs
 

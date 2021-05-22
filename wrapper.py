@@ -17,28 +17,34 @@ def tim(clas):
 def test_decorator(obj):
     def wraper(*args, **kwargs):
         print('test started')
-        solver, X, mes, t = obj(*args, **kwargs)
+        solver, X, mes, t, delta = obj(*args, **kwargs)
         print('verdict : ' + mes)
-        print('mean time : {}'.format(t))
+        print('time : {:.4} +- {:.4}'.format(t, delta))
 
         if type(solver.timelog).__name__ == 'newton_log':
             print('mean newton iterations: ', np.mean(solver.timelog.kn))
         elif type(solver.timelog).__name__ == 'aspen_log':
             print('mean aspen iterations: ', np.mean(solver.timelog.aspen_iters))
 
-        return X, mes, t
+        return X, mes, t, delta
     return wraper
 
-def test(solver, sample_size = 5, tmax = 1):
+def test(solver, sample_size = 5, tmax=1, dyn_bd = False):
     t = 0
-    for k in range(sample_size):
-        solver.init_log()
-        t -= time.time()
-        X, mes = solver.solve(tmax)
-        t += time.time()
-    t /= sample_size
+    t = np.zeros(sample_size)
 
-    return solver, X, mes, t
+    if dyn_bd:
+        buf = np.copy(solver.solver.partion)
+    for k in range(sample_size):
+        if dyn_bd:
+            solver.prob.func.reset_jac(solver.solver.partion)
+            solver.solver.partion = np.copy(buf)
+        solver.init_log()
+        t[k] -= time.time()
+        X, mes = solver.solve(tmax)
+        t[k] += time.time()
+    
+    return solver, X, mes, np.mean(t),  np.sqrt(np.std(t))
 
 def show_res(solver, save=None):
     x = np.linspace(0, 1, solver.param.Nx)
@@ -56,18 +62,20 @@ def show_res(solver, save=None):
             for bd in solver.solver.partion[1:-1]:
                 plt.axvline(bd/solver.param.Nx, linestyle = '--', color='k')
         else:
-            for i in range(4):
+            for i in range(solver.freq_ch+1):
                 for bd in solver.timelog.borders[:, i]:
+                    step = 1/(solver.freq_ch+1)
                     plt.plot([bd/solver.param.Nx, bd/solver.param.Nx], 
-                        [0.25*i, 0.25*(i+1)],
+                        [step*i, step*(i+1)],
                         linestyle = '--', color='k')
-            for i in range(4):
-                plt.axhline(0.25*i, linestyle = '--', color='k')
+            for i in range(solver.freq_ch+1):
+                step = 1/(solver.freq_ch+1)
+                plt.axhline(step*i, linestyle = '--', color='k')
 
     cs = plt.contourf(x_grid, t_grid, solver.X.T, cmap='RdBu_r')
     cbar = plt.colorbar(cs)
     if save != None:
-        plt.savefig(save, dpi=400)
+        plt.savefig('data/'+save, dpi=400)
     plt.show()
 
 def bar_loc(solver, Nd, save = None):
@@ -76,7 +84,7 @@ def bar_loc(solver, Nd, save = None):
     
     plt.bar(np.arange(1, Nd+1), np.mean(solver.timelog.domain_iters, axis = 1))
     if save != None:
-        plt.savefig(save, dpi=400)
+        plt.savefig('data/' + save, dpi=400)
     plt.show()
 
 def bar_loc_step(solver, Nd, step, save = None):
@@ -102,7 +110,7 @@ def compare(list_of_solvers, list_of_names, save=None):
         print(name+ ' :', tim(solver.timelog) )
     plt.legend()
     if save != None:
-        plt.savefig(save, dpi=400)
+        plt.savefig('data/'+save, dpi=400)
     plt.show()
 
 

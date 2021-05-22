@@ -91,7 +91,8 @@ class one_phase():
     # d^2(Flow_n)/(dU_n)^2
     # needed for metrics
     def FluxSecJac(self, X, i):
-        delta = np.zeros((1, 2))
+        val = np.zeros((1, 2))
+        delta = np.zeros((2, 1))
         if i == 0:
             delta[0] = self.bc.val[0]
             delta[1] = X[i]
@@ -204,10 +205,10 @@ class one_phase():
 
 
     # used for metrics
-    def precompute_Jf(solver, X, N):
-        Jf = np.zeros((N+1, 2))
-        for i in range(N+1):
-            Jf[i, :] = solver.FluxJac(X, i)
+    def precompute_Jf(self, X, N, step=1):
+        Jf = np.zeros((N//step+1, 2))
+        for i in range(0, N+1, step):
+            Jf[i//step, :] = self.FluxJac(X, i)
         return Jf
 
 
@@ -217,14 +218,14 @@ class one_phase():
 # calulates cross deriviate
 def m1(Jf, i, j):
     if i - j == 1:
-        return np.abs(1/Jf[i, 0]) + np.abs(1/Jf[i, 1])
+        return np.abs(Jf[i, 0]) + np.abs(Jf[i, 1])
     else:
         return 0
 
 # calculates cross coef
-def m2(X, i, j, t_step = 5):
-    fr = X[i, ::t_step].T
-    sc = X[j, ::t_step].T
+def m2(X, i, j, x_step = 1,t_step = 1):
+    fr = X[i*x_step, ::t_step].T
+    sc = X[j*x_step, ::t_step].T
     tmp = np.stack((fr, sc), axis = 0)
     cov = np.cov(tmp)
     val = np.abs(cov[0][1]/np.sqrt(cov[0][0]*cov[1][1]))
@@ -232,22 +233,24 @@ def m2(X, i, j, t_step = 5):
     return val
 
 # calculates... stuff
-def m3(solver, X, Jf, i, j):
+def m3(solver, X, Jf, i, j, Nt, step = 1):
     if i - j == 1:
-        dt = 1/solver.param.Nt
-        pp_i = solver.FluxSecJac(X, i)
+        dt = 1/Nt
+        Sec_i = solver.FluxSecJac(X, i*step)
+        Sec_j = solver.FluxSecJac(X, j*step)
+        pp_i = np.abs(Sec_i[0][1])
         p_i = (1/dt+Jf[i+1, 0] - Jf[i, 1])**2
-        pp_j = solver.FluxSecJac(X, j)
+        pp_j = np.abs(Sec_j[0][1])
         p_j = (1/dt+Jf[j+1, 0] - Jf[j, 1])**2
 
         t1 = Jf[i, 1]**2
         t2 = Jf[i, 0]**2
-        t3 = np.abs(solver.FluxCrossSecJac(X, i))
+        t3 = np.abs(Sec_i[0][0])
         return (t3*(1/t1 + 1/t2))+np.abs(pp_i)/(p_i)+np.abs(pp_j)/(p_j)
     if i == j:
         return 0
-        dt = 1/solver.param.Nt
-        pp_i = solver.FluxSecJac(X, i)
+        dt = 1/Nt
+        pp_i = solver.FluxSecJac(X, i*step)[0]
         p_i = (1/dt+Jf[i+1, 0] - Jf[i, 1])**2
         return np.abs(pp_i)/(p_i)
     else:

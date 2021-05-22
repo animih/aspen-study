@@ -59,11 +59,6 @@ class transfer():
             if j == 1:
                 d_dx = 1
 
-            if i == 0:
-                if imax == 0:
-                    x_dx = 0
-                if j == 0:
-                    d_dx = 0
             elif i == self.Nx:
                 if imax == 1:
                     x_dx = 0
