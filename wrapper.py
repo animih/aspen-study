@@ -40,9 +40,10 @@ def test(solver, sample_size = 5, tmax=1, dyn_bd = False):
             solver.prob.func.reset_jac(solver.solver.partion)
             solver.solver.partion = np.copy(buf)
         solver.init_log()
-        t[k] -= time.time()
+        #t[k] -= time.time()
         X, mes = solver.solve(tmax)
-        t[k] += time.time()
+        t[k] = tim(solver.timelog)
+        #t[k] += time.time()
     
     return solver, X, mes, np.mean(t),  np.sqrt(np.std(t))
 

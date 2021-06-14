@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 class aspen():
     log_init = False
 
-    def __init__(self, Nd, domain_borders, crit_abs=1e-4, newton_crit_rel = 0, max_gb = 8, max_lc = 25):
+    def __init__(self, Nd, domain_borders, crit_abs=1e-4, newton_crit_rel = 0, max_gb = 10, max_lc = 25):
 
         self.Nd = Nd
         self.partion = np.copy(domain_borders)
@@ -64,7 +64,8 @@ class aspen():
             if(self.log_init):
                 self.gb_res += t_res_gb
             # convergence
-            delta = np.linalg.norm(R)
+            #delta = np.linalg.norm(R)
+            delta = np.max(np.abs(R))
 
             if j == 0:
                 R0 = delta

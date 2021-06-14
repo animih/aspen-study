@@ -38,7 +38,8 @@ class newton():
                 self.res += t_res
 
             # convergence
-            delta = np.linalg.norm(R)
+            #delta = np.linalg.norm(R)
+            delta = np.max(np.abs(R))
             #print(delta)
             if k == 0:
                 R0 = delta
@@ -47,13 +48,13 @@ class newton():
             is_conv_rel = delta <= self.crit_rel*R0
             converged = is_conv_abs or is_conv_rel
 
-            if converged:
-                break
-
             # jacobian
             t_jac = - time()
             J = self.f.jac(X)
             t_jac += time()
+
+            if converged:
+                break
 
             if(self.log_init):
                 self.jac += t_jac
