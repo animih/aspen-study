@@ -82,7 +82,7 @@ def show_res(solver, save=None):
 def bar_loc(solver, Nd, save = None):
 
     plt.title('mean iters')
-    
+    plt.ylim([0, 10])
     plt.bar(np.arange(1, Nd+1), np.mean(solver.timelog.domain_iters, axis = 1))
     if save != None:
         plt.savefig('data/' + save, dpi=400)
@@ -90,6 +90,7 @@ def bar_loc(solver, Nd, save = None):
 
 def bar_loc_step(solver, Nd, step, save = None):
     plt.title('liters on step = {}'.format(step))
+    plt.ylim([0, 10])
     plt.bar(np.arange(1, Nd+1), solver.timelog.domain_iters[:, step])
     if save != None:
         plt.savefig(save, dpi=400)

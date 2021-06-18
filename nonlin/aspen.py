@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 class aspen():
     log_init = False
 
-    def __init__(self, Nd, domain_borders, crit_abs=1e-4, newton_crit_rel = 0, max_gb = 10, max_lc = 25):
+    def __init__(self, Nd, domain_borders, crit_abs=1e-4, crit_loc = None, crit_rel = 0, max_gb = 10, max_lc = 25):
 
         self.Nd = Nd
         self.partion = np.copy(domain_borders)
@@ -15,8 +15,11 @@ class aspen():
         self.crit_abs = crit_abs
         self.max_gb = max_gb
         self.max_lc = max_lc
+
+        if crit_loc == None:
+            crit_loc = crit_abs
         
-        self.newton = newton.newton(crit_abs, newton_crit_rel, max_lc)
+        self.newton = newton.newton(crit_loc, crit_rel, max_lc)
 
     def init_log(self):
         self.log_init = True
@@ -83,7 +86,7 @@ class aspen():
                 self.f_l.set_domain(start, end)
 
                 self.buf[:end-start] = X[start:end]
-                self.X_l[start:end], mes = self.newton.solve(X, aspen = True)
+                self.X_l[start:end], mes = self.newton.solve(X, aspen = True, prev_res = R[start:end])
 
                 X[start:end] = self.buf[:end-start]
 

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.sparse.linalg import spsolve
 from time import time
 
 class newton():
@@ -20,38 +21,45 @@ class newton():
     def init_func(self, f):
         self.f = f
 
-    def solve(self, X, aspen = False):
+    def solve(self, X, aspen = False, prev_res=None):
 
         converged = False
 
         if aspen:
+            res_flag = True
             bg = self.f.start
             en = self.f.end
+        else:
+            res_flag = False
 
         for k in range(self.kmax):
-            # residual
-            t_res = - time()
-            R = self.f.val(X)
-            t_res += time()
 
-            if(self.log_init):
-                self.res += t_res
+            if not(res_flag):
+                # residual
+                t_res = - time()
+                R = self.f.val(X)
+                t_res += time()
+                if(self.log_init):
+                    self.res += t_res
+
+            else:
+                R = prev_res
+                res_flag = False
 
             # convergence
             #delta = np.linalg.norm(R)
             delta = np.max(np.abs(R))
             #print(delta)
+            # jacobian
+            t_jac = - time()
+            J = self.f.jac(X)
+            t_jac += time()
             if k == 0:
                 R0 = delta
 
             is_conv_abs = delta <= self.crit_abs
             is_conv_rel = delta <= self.crit_rel*R0
             converged = is_conv_abs or is_conv_rel
-
-            # jacobian
-            t_jac = - time()
-            J = self.f.jac(X)
-            t_jac += time()
 
             if converged:
                 break
@@ -62,9 +70,9 @@ class newton():
             # lin solve
             t_lin = - time()
             if aspen:
-                X[bg:en] += np.linalg.solve(J, -R)
+                X[bg:en] += spsolve(J, -R).reshape(-1, 1) #np.linalg.solve(J, -R)
             else:
-                X += np.linalg.solve(J, -R)
+                X += spsolve(J, -R).reshape(-1, 1)#np.linalg.solve(J, -R)
             t_lin += time()
             
             if(self.log_init):

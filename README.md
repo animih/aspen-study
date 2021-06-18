@@ -4,6 +4,6 @@ Additive Schwarz preconditioned exact Newton method
 * [Overleaf](https://www.overleaf.com/4387772441yrytpccwqxbb)
 
 Немного про содержание репозитория:
-* В ноутбуке Test1 тестируется формулировка задачи через edgecut
-* В ноутбуке Test2 (incoming) тестируется статистический подход
-* В ноутбуке PolynomialTest рассматривается искуственный пример системы с явным разделением доменов
+* В ноутбуке one_phase_test1 - ур-ие Диффузи
+* В ноутбуке one_phase_test2 - ур-ие Диффузи, работа с моделью разбиения на домены
+* В ноутбуке hb_eq_test - ур-ие Переноса
