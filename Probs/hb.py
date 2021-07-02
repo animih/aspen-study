@@ -26,14 +26,13 @@ class transfer():
             delta[1] = X[i]
         else:
             delta = np.array([X[i+1], X[i]])
-        x = max(delta[0], delta[1])
-        mult = self.c.model(x)
+        mult = self.c.model(delta[1])
         val = -self.c.val[i]*self.Nx * mult[0] * (delta[0] - delta[1])
         return val
 
     # returns two elements
-    # first - d (FluxRes_i) / du_{i}
-    # second - d (FluxRes_i) / du_{i+1}
+    # first - d (R_i) / du_{i}
+    # second - d (R_i) / du_{i+1}
     def Jac(self, X, i):
         val = np.zeros((1, 2))
         delta = np.zeros((2, 1))
@@ -43,29 +42,34 @@ class transfer():
         else:
             delta[0] = X[i+1]
             delta[1] = X[i]
-        imax = 0
-        if delta[1] >= delta[0]:
-            imax = 1
 
-        x = delta[imax]
-        mult = self.c.model(x)
+        mult = self.c.model(X[i])
 
         for j in range(2):
             x_dx = 0
-            if imax == j:
+            if j == 0:
                 x_dx = mult[1]
 
             d_dx = -1
             if j == 1:
                 d_dx = 1
 
-            elif i == self.Nx:
-                if imax == 1:
-                    x_dx = 0
-                if j == 1:
-                    d_dx = 0
-
             val[0,j] = -self.c.val[i]*self.Nx * (x_dx * (delta[0]-delta[1])+mult[0]*d_dx)
+        return val
+
+    # special func for global stage
+    def GJac(self, X_lc, X_gb_prev, i):
+        delta = np.zeros((2, 1))
+        delta[0] = X_gb_prev[i+1]
+        delta[1] = X_lc[i]
+
+        mult = self.c.model(X_lc[i])
+
+        x_dx = 0
+
+        d_dx = 1
+
+        val = -self.c.val[i]*self.Nx * (x_dx * (delta[0]-delta[1])+mult[0]*d_dx)
         return val
         
 
@@ -88,6 +92,7 @@ class transfer():
 
             self.res_f = lambda X, i: outer_instance.Res(X, i)
             self.jac_f = outer_instance.Jac
+            self.gjac_f = outer_instance.GJac
 
 
         def val(self, X, st = 0, end = None):
@@ -124,11 +129,11 @@ class transfer():
                 self.Jx_s[bg:end, bg:end] = 0
             
 
-        def jac_gb(self, X_gb_prev, domain_borders):
+        def jac_gb(self, X_gb_prev, X, domain_borders):
             
             for bd in domain_borders[1:-1]:
-                tmp = self.jac_f(X_gb_prev, bd)
-                self.Jx[bd, bd+1] = -tmp[0][1]
+                tmp = self.gjac_f(X, X_gb_prev, bd)
+                self.Jx[bd, bd+1] = tmp
             
             return self.Jx+self.Jt/self.dt, self.Jx_s+self.Jt/self.dt
 

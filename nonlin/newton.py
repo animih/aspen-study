@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
+from scipy import sparse
 from time import time
 
 class newton():
@@ -69,6 +70,7 @@ class newton():
 
             # lin solve
             t_lin = - time()
+            J = sparse.csr_matrix(J)
             if aspen:
                 X[bg:en] += spsolve(J, -R).reshape(-1, 1) #np.linalg.solve(J, -R)
             else:

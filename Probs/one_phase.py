@@ -83,6 +83,44 @@ class one_phase():
             val[0,j] = -self.D.val[i] * self.Nx**2*(x_dx *   (delta[1]-delta[0])+mult[0]*d_dx)
         return val
 
+    # special func for global stage
+    def GFluxJac(self, X_lc, X_gb_prev, i):
+        val = np.zeros((1, 2))
+        delta = np.zeros((2, 1))
+        for j in range(2):
+            if j == 0:
+                delta[0] = X_lc[i-1]
+                delta[1] = X_gb_prev[i]
+            if j == 1:
+                delta[0] = X_gb_prev[i-1]
+                delta[1] = X_lc[i]
+            imax = 0
+            if delta[1] >= delta[0]:
+                imax = 1
+            x = delta[imax]
+            mult = self.D.model(x)
+            x_dx = 0
+            if imax == j:
+                x_dx = mult[1]
+
+            d_dx = -1
+            if j == 1:
+                d_dx = 1
+
+            if i == 0:
+                if imax == 0:
+                    x_dx = 0
+                if j == 0:
+                    d_dx = 0
+            elif i == self.Nx:
+                if imax == 1:
+                    x_dx = 0
+                if j == 1:
+                    d_dx = 0
+
+            val[0,j] = -self.D.val[i] * self.Nx**2*(x_dx *   (delta[1]-delta[0])+mult[0]*d_dx)
+        return val
+
     # returns second i-{ii,jj} -derivate of term responds
     # to flow between n-1, n
     # first el:
@@ -154,6 +192,7 @@ class one_phase():
 
             self.res_f = lambda X, i: outer_instance.FluxRes(X, i+1) - outer_instance.FluxRes(X, i)
             self.jac_f = outer_instance.FluxJac
+            self.gjac_f = outer_instance.GFluxJac
 
 
         def val(self, X, st = 0, end = None):
@@ -194,10 +233,10 @@ class one_phase():
                 self.Jx_s[bg:end, bg:end] = 0
             
 
-        def jac_gb(self, X_gb_prev, domain_borders):
+        def jac_gb(self, X_gb_prev, X, domain_borders):
             
             for bd in domain_borders[1:-1]:
-                tmp = self.jac_f(X_gb_prev, bd)
+                tmp = self.gjac_f(X, X_gb_prev, bd)
                 self.Jx[bd, bd-1] = -tmp[0][0]
                 self.Jx[bd-1, bd] = tmp[0][1]
             

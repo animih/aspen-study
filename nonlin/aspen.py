@@ -1,5 +1,7 @@
 import newton
 import numpy as np
+from scipy.sparse.linalg import spsolve
+from scipy import sparse
 from time import time
 
 import matplotlib.pyplot as plt
@@ -101,7 +103,7 @@ class aspen():
 
             # jacobian
             t_jac_gb = - time()
-            J, D = self.f.jac_gb(X, self.partion)
+            J, D = self.f.jac_gb(X, self.X_l, self.partion)
             t_jac_gb += time()
 
             if(self.log_init):
@@ -111,7 +113,8 @@ class aspen():
             F = X - self.X_l
 
             t_lin_gb = - time()
-            X += np.linalg.solve(-J, D@F)
+            J = sparse.csr_matrix(J)
+            X += spsolve(-J, D@F).reshape(-1, 1)
             t_lin_gb += time()
 
             if(self.log_init):
