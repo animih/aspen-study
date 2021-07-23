@@ -48,50 +48,50 @@ def test(solver, sample_size = 5, tmax=1, dyn_bd = False):
     return solver, X, mes, np.mean(t),  np.sqrt(np.std(t))
 
 def show_res(solver, save=None):
-    x = np.linspace(0, 1, solver.param.Nx)
+    x = np.linspace(0, 1, solver.Nx)
     plt.figure(figsize= (8, 6))
     plt.xlabel('x')
     plt.ylabel('t')
-    if type(solver.solver).__name__ == 'aspen':
+    if type(solver.nl_solver).__name__ == 'aspen':
         plt.title('ASPEN')
     else:
         plt.title('Newton')
     t = solver.t
     x_grid, t_grid = np.meshgrid(x, t)
-    if type(solver.solver).__name__ == 'aspen':
+    if type(solver.nl_solver).__name__ == 'aspen':
         if not(solver.dyn_bd):
-            for bd in solver.solver.partion[1:-1]:
-                plt.axvline(bd/solver.param.Nx, linestyle = '--', color='k')
+            borders = [domain[0] for domain in solver.nl_solver.partion[1:]]
+            for bd in borders:
+                plt.axvline(bd/solver.Nx, linestyle = '--', color='k')
         else:
-            for i in range(solver.freq_ch+1):
+            for i in range(solver.freq_ch):
                 for bd in solver.timelog.borders[:, i]:
-                    step = 1/(solver.freq_ch+1)
-                    plt.plot([bd/solver.param.Nx, bd/solver.param.Nx], 
+                    step = 1/(solver.freq_ch)
+                    plt.plot([bd/solver.Nx, bd/solver.Nx], 
                         [step*i, step*(i+1)],
                         linestyle = '--', color='k')
             for i in range(solver.freq_ch+1):
-                step = 1/(solver.freq_ch+1)
+                step = 1/(solver.freq_ch)
                 plt.axhline(step*i, linestyle = '--', color='k')
 
     cs = plt.contourf(x_grid, t_grid, solver.X.T, cmap='RdBu_r')
     cbar = plt.colorbar(cs)
     if save != None:
         plt.savefig('data/'+save, dpi=400)
-    plt.show()
 
 def bar_loc(solver, Nd, save = None):
 
     plt.title('mean iters')
-    plt.ylim([0, 10])
-    plt.bar(np.arange(1, Nd+1), np.mean(solver.timelog.domain_iters, axis = 1))
+    plt.ylim([0, 6])
+    plt.bar(np.arange(1, Nd+1), np.mean(solver.timelog.domain_iters/solver.timelog.aspen_iters, axis = 1))
     if save != None:
         plt.savefig('data/' + save, dpi=400)
     plt.show()
 
 def bar_loc_step(solver, Nd, step, save = None):
     plt.title('liters on step = {}'.format(step))
-    plt.ylim([0, 10])
-    plt.bar(np.arange(1, Nd+1), solver.timelog.domain_iters[:, step])
+    plt.ylim([0, 6])
+    plt.bar(np.arange(1, Nd+1), solver.timelog.domain_iters[:, step-1]/solver.timelog.aspen_iters[step-1])
     if save != None:
         plt.savefig(save, dpi=400)
     plt.show()
@@ -104,11 +104,13 @@ def compare(list_of_solvers, list_of_names, save=None):
     title += list_of_names[-1]
     plt.title(title)
     print('--time comparision--')
+
+    step = np.arange(1, list_of_solvers[0].Nt+1)
     for solver, name in zip(list_of_solvers, list_of_names):
-        if type(solver.solver).__name__ == 'aspen':
-            plt.plot(solver.timelog.aspen_iters, label=name)
-        elif  type(solver.solver).__name__ == 'newton':
-            plt.plot(solver.timelog.kn, label=name)
+        if type(solver.nl_solver).__name__ == 'aspen':
+            plt.plot(step, solver.timelog.aspen_iters, label=name)
+        elif  type(solver.nl_solver).__name__ == 'newton':
+            plt.plot(step, solver.timelog.kn, label=name)
         print(name+ ' :', tim(solver.timelog) )
     plt.legend()
     if save != None:

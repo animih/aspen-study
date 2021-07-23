@@ -1,7 +1,8 @@
-# 4-point scheme for 1D one-phase flow
-
 import numpy as np
 
+
+# 1D one-phase flow problem
+# 4-point stencil is used to solve
 class one_phase():
 
     def __init__(self, D, param):
@@ -11,11 +12,13 @@ class one_phase():
 
         self.func = self.spec_func(self)
 
-    def update(self, dt, X_cur, bc, q):
-        self.dt = dt
-        self.X_cur = X_cur
+    def setBcSr(self, bc, q):
         self.bc = bc
         self.q = q
+
+    def update(self, X_cur, dt):
+        self.X_cur = X_cur
+        self.dt = dt
 
     # help function that calculate term that repsonse 
     # to flow ratio between (n-1, n)
@@ -26,9 +29,9 @@ class one_phase():
         delta = np.zeros((2, 1))
         if i == 0:
             delta[0] = X[i]
-            delta[1] = self.bc.val[0]
+            delta[1] = self.bc[0]
         elif i == self.Nx:
-            delta[0] = self.bc.val[1]
+            delta[0] = self.bc[1]
             delta[1] = X[i - 1]
         else:
             delta = np.array([X[i], X[i - 1]])
@@ -47,11 +50,11 @@ class one_phase():
         val = np.zeros((1, 2))
         delta = np.zeros((2, 1))
         if i == 0:
-            delta[0] = self.bc.val[0]
+            delta[0] = self.bc[0]
             delta[1] = X[i]
         elif i == self.Nx:
             delta[0] = X[i-1]
-            delta[1] = self.bc.val[1]
+            delta[1] = self.bc[1]
         else:
             delta[0] = X[i-1]
             delta[1] = X[i]
@@ -132,11 +135,11 @@ class one_phase():
         val = np.zeros((1, 2))
         delta = np.zeros((2, 1))
         if i == 0:
-            delta[0] = self.bc.val[0]
+            delta[0] = self.bc[0]
             delta[1] = X[i]
         elif i == self.Nx:
             delta[0] = X[i-1]
-            delta[1] = self.bc.val[1]
+            delta[1] = self.bc[1]
         else:
             delta[0] = X[i-1]
             delta[1] = X[i]
@@ -194,20 +197,29 @@ class one_phase():
             self.jac_f = outer_instance.FluxJac
             self.gjac_f = outer_instance.GFluxJac
 
-
-        def val(self, X, st = 0, end = None):
-            if end == None:
+        def val(self, X, inds = []):
+            if np.size(inds, 0) == 0:
+                st = 0
                 end = self.N
-            np.subtract(X[st:end], self.outer.X_cur[st:end], out = self.Rt[st:end, :])
+            else:
+                st = inds[0]
+                end = inds[-1]+1
+
+            np.subtract(X[st:end], self.outer.X_cur[st:end], out = self.Rt[st:end])
 
             for i in range(st, end):
                 self.Rx[i, :] = self.res_f(X, i)
 
             return self.Rt[st:end]/self.dt + self.Rx[st:end] + self.outer.q[st:end]*self.outer.Nx
 
-        def jac(self, X, st = 0, end = None):
-            if end == None:
+        def jac(self, X, inds = []):
+            if np.size(inds, 0) == 0:
+                st = 0
                 end = self.N
+            else:
+                st = inds[0]
+                end = inds[-1]+1
+
             for i in range(st, end+1):
                 self.Jf[i, :] = self.jac_f(X, i)
 
@@ -226,23 +238,20 @@ class one_phase():
 
             return self.Jx_s[st:end, st:end] + self.Jt[st:end, st:end]/self.dt
 
-        def reset_jac(self, borders):
-            for i in range(borders.shape[0]-1):
-                bg = borders[i]
-                end = borders[i+1]
-                self.Jx_s[bg:end, bg:end] = 0
+        def reset_jac(self):
+            self.Jx_s = np.zeros((self.N, self.N))
             
 
-        def jac_gb(self, X_gb_prev, X, domain_borders):
+        def jac_gb(self, X_gb_prev, X, domains):
+
+            borders = [domain[0] for domain in domains[1:]]
             
-            for bd in domain_borders[1:-1]:
+            for bd in borders:
                 tmp = self.gjac_f(X, X_gb_prev, bd)
                 self.Jx[bd, bd-1] = -tmp[0][0]
                 self.Jx[bd-1, bd] = tmp[0][1]
             
             return self.Jx+self.Jt/self.dt, self.Jx_s+self.Jt/self.dt
-
-
     # used for metrics
     def precompute_Jf(self, X, N, step=1):
         Jf = np.zeros((N//step+1, 2))
@@ -250,18 +259,17 @@ class one_phase():
             Jf[i//step, :] = self.FluxJac(X, i)
         return Jf
 
-
 # some of proposed metrics
 # for one_phase diffusion only
 
-# calulates cross deriviate
+# calulates cross derivative
 def m1(Jf, i, j):
     if i - j == 1:
         return np.abs(Jf[i, 0]) + np.abs(Jf[i, 1])
     else:
         return 0
 
-# calculates cross coef
+# calculates cross correlation
 def m2(X, i, j, x_step = 1,t_step = 1):
     fr = X[i*x_step, ::t_step].T
     sc = X[j*x_step, ::t_step].T
@@ -271,7 +279,8 @@ def m2(X, i, j, x_step = 1,t_step = 1):
     #val = cov[0][1]
     return val
 
-# calculates... stuff
+# calculates cross second derivative, or smth...
+# don't remeber quite much how derived it...
 def m3(solver, X, Jf, i, j, Nt, step = 1):
     if i - j == 1:
         dt = 1/Nt
@@ -286,11 +295,5 @@ def m3(solver, X, Jf, i, j, Nt, step = 1):
         t2 = Jf[i, 0]**2
         t3 = np.abs(Sec_i[0][0])
         return (t3*(1/t1 + 1/t2))+np.abs(pp_i)/(p_i)+np.abs(pp_j)/(p_j)
-    if i == j:
-        return 0
-        dt = 1/Nt
-        pp_i = solver.FluxSecJac(X, i*step)[0]
-        p_i = (1/dt+Jf[i+1, 0] - Jf[i, 1])**2
-        return np.abs(pp_i)/(p_i)
     else:
         return 0

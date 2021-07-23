@@ -3,6 +3,8 @@ from scipy.sparse.linalg import spsolve
 from scipy import sparse
 from time import time
 
+# classical newton solver
+# for any nonlinear system
 class newton():
 
     log_init = False
@@ -22,16 +24,17 @@ class newton():
     def init_func(self, f):
         self.f = f
 
-    def solve(self, X, aspen = False, prev_res=None):
+    def solve(self, X_cur, aspen = False, prev_res=None):
 
         converged = False
 
         if aspen:
             res_flag = True
-            bg = self.f.start
-            en = self.f.end
+            inds = self.f.inds
         else:
             res_flag = False
+
+        X = np.copy(X_cur)
 
         for k in range(self.kmax):
 
@@ -58,6 +61,12 @@ class newton():
             if k == 0:
                 R0 = delta
 
+            # in future it would be better to rewrite
+            # the jacobian to be build in sparse format already
+            # for now it is manually converted after (lazy realization)
+            # therefore this operation is off timelog
+            J = sparse.csr_matrix(J)
+
             is_conv_abs = delta <= self.crit_abs
             is_conv_rel = delta <= self.crit_rel*R0
             converged = is_conv_abs or is_conv_rel
@@ -70,9 +79,8 @@ class newton():
 
             # lin solve
             t_lin = - time()
-            J = sparse.csr_matrix(J)
             if aspen:
-                X[bg:en] += spsolve(J, -R).reshape(-1, 1) #np.linalg.solve(J, -R)
+                X[inds] += spsolve(J, -R).reshape(-1, 1) #np.linalg.solve(J, -R)
             else:
                 X += spsolve(J, -R).reshape(-1, 1)#np.linalg.solve(J, -R)
             t_lin += time()
@@ -84,6 +92,6 @@ class newton():
             self.k += k
 
         if aspen:
-            return X[bg:en], converged
+            return X[inds], converged
 
         return X, converged

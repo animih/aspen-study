@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from time import time
 
-# some of proposed ways to regulize
+# some of proposed ways to regulize edgecut
 
 # reg by domian size |V|
 def metrics1(borders, weights):
@@ -39,44 +39,23 @@ def adj_matrix(m_ij, Nx, dense = 0):
     tmp1 = f(np.arange(1, Nx), np.arange(Nx-1))
     out =  np.diag(tmp1, k = -1)+np.diag(main)
 
+    # dense is needed to restrict the maximum degree of node
     if dense:
-        #main = f(np.arange(Nx), np.arange(Nx))
-        #out += np.diag(main)
         for k in range(2, dense+2):
             tmp1 = f(np.arange(Nx-k), np.arange(k, Nx))
             out +=  np.diag(tmp1, k = -k)
 
+    # we consider only nondirected graphs
     out += out.T
 
     return out
 
-
-# only 1D is considered
-
-# equally partion, nice start
-def partion_equally(Nx, Nd):
-    res = np.zeros(Nd+1, dtype='int')
-    res[1:Nd] = Nx//Nd*np.arange(1, Nd, 1, dtype='int')
-    res[Nd] = Nx
+# equally partion for 1D problem
+def partion_equally1D(Nx, Nd):
+    res = [ np.arange(Nx//Nd*i, Nx//Nd*(i+1), 1, dtype = 'int') for i in range(Nd-1) ]
+    res.append(np.arange(Nx//Nd*(Nd-1), Nx, 1, dtype = 'int'))
 
     return res
-
-def generate_fr_eq(Nx, Nd):
-    borders = partion_equally(Nx, Nd)
-
-    max_step = Nx//Nd-10
-
-    if Nd == 2:
-        borders[1] += np.random.randint(-max_step, max_step)
-    else:
-        borders[1] += np.random.randint(-max_step, max_step//2)
-        borders[-2] += np.random.randint(-max_step//2, max_step)
-
-        for i in range(2, Nd-1):
-            borders[i] += np.random.randint(-max_step//2, max_step//2)
-
-    return borders
-
 
 # spectral bisection
 def spec_bis(A, inv = False, k = 2, X = None):
@@ -94,6 +73,9 @@ def spec_bis(A, inv = False, k = 2, X = None):
     #w[np.argmin(w)] = np.inf
     return w, v
 
+# first approach (not used)
+# that solves multiple domain problem
+# by perofroming iteratively bisection
 def domain_builder1(A, Nd, inv = False):
     Nx = A.shape[0]
     borders = [0, Nx]
@@ -125,6 +107,9 @@ def domain_builder1(A, Nd, inv = False):
     borders = np.sort(borders)
     return borders
 
+# second approach (recommended)
+# that solves multiple domain problem
+# by clusterizing in spectral embedded space
 def domain_builder2(A, Nd, inv = False, k = 5, X = None):
     Nx = A.shape[0]
     w, v = spec_bis(A, inv = inv, k = k+1, X = X)
@@ -166,66 +151,3 @@ def domain_builder2(A, Nd, inv = False, k = 5, X = None):
     if X != None:
         return v, borders
     return borders
-
-# local search
-# heating imitation 1D
-class heat_1D():
-    def __init__(self, T0 = 9600, alpha =0.3):
-        self.T0 = T0
-        self.T = T0
-        self.alpha = alpha
-    def find(self, borders, metrics, steps=50, cl = True):
-        nd = borders.shape[0]-1
-
-        prev_val = metrics(borders)
-        prev_borders = np.copy(borders)
-
-        best_borders = np.copy(borders)
-        best_val = np.copy(prev_val)
-
-        for k in range(steps):
-            for i in range(1, nd):
-
-                for k in range(2):
-                    xi = np.random.randint(-1, 1)
-
-                    if borders[i]+xi != borders[i+1] and borders[i]+xi != borders[i-1]:
-                        borders[i]+= xi
-                        break
-                        
-                    xi = - xi
-
-            val = metrics(borders)
-
-            if val < prev_val:
-                prev_val = np.copy(val)
-                prev_borders = np.copy(borders)
-            elif np.random.random() < np.exp(-(val-prev_val)/np.abs(prev_val*self.T)):
-                prev_val = np.copy(val)
-                prev_borders = np.copy(borders)
-            else:
-                borders = np.copy(prev_borders)
-
-            if val < best_val:
-                best_borders = np.copy(borders)
-                best_val = np.copy(val)
-            if cl:
-                self.decrease()
-            else:
-                self.increase()
-
-        return prev_borders
-
-    def decrease(self):
-        self.T /= (1+self.alpha)
-    def increase(self):
-        self.T *= (1+self.alpha)
-
-
-def generate_random(Nx, Nd, min_size=20):
-    size = 0
-    while(size < min_size):
-        choice = 10+np.random.choice(Nx-10, Nd-1)
-        choice = np.sort(choice)
-        size = np.min(choice[1:] - choice[:-1])
-    return np.concatenate(([0], choice , [Nx]), axis = 0)
