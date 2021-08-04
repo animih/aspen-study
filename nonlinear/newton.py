@@ -3,27 +3,33 @@ from scipy.sparse.linalg import spsolve
 from scipy import sparse
 from time import time
 
-# classical newton solver
-# for any nonlinear system
+# class of newton-method solver
 class newton():
 
     log_init = False
 
     def __init__(self, crit_abs=1e-4, crit_rel = 0, kmax = 25):
-        self.kmax = kmax
-        self.crit_rel = crit_rel
-        self.crit_abs = crit_abs
+        self.kmax = kmax # maximum number of iterations
+        self.crit_rel = crit_rel # relative error |R(u*)| < crit_rel * |R(u0)|
+        self.crit_abs = crit_abs # absolute error |R(u*)| < crit_abs
 
+    # initializer for timelog
     def init_log(self):
         self.log_init = True
-        self.k = 0
-        self.res = 0
-        self.jac = 0
-        self.lin = 0
+        self.k = 0 # number of iterations
+        self.res = 0 # overall resiudal build time
+        self.jac = 0 # overall jacobian build time
+        self.lin = 0 # overall linear system solve time
 
+    # provide solver with function
+    # val(X) and jac(X) method should be supported
     def init_func(self, f):
         self.f = f
 
+    # solve nonlinear system
+    # given start iteration (X_cur)
+    # 'aspen' flag is needed only when Newton is used in subdomains
+    # prev_res provides each subdomain with start resiudal
     def solve(self, X_cur, aspen = False, prev_res=None):
 
         converged = False

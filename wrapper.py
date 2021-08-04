@@ -4,6 +4,8 @@ import inspect
 import matplotlib.pyplot as plt
 import time
 
+# func that sums times on each time step
+# and returns overall solver work time
 def tim(clas):   
     if type(clas).__name__ == 'aspen_log':
         t = clas.gb_res+clas.gb_jac \
@@ -14,6 +16,7 @@ def tim(clas):
     
     return t
 
+# a decorator for test-function with output results
 def test_decorator(obj):
     def wraper(*args, **kwargs):
         print('test started')
@@ -29,6 +32,7 @@ def test_decorator(obj):
         return X, mes, t, delta
     return wraper
 
+# run problem sample_size times, finds mean time and std
 def test(solver, sample_size = 5, tmax=1, dyn_bd = False):
     t = 0
     t = np.zeros(sample_size)
@@ -47,6 +51,8 @@ def test(solver, sample_size = 5, tmax=1, dyn_bd = False):
     
     return solver, X, mes, np.mean(t),  np.sqrt(np.std(t))
 
+# ploter func for provided solver
+# optional: save = desired filepath to save plot
 def show_res(solver, save=None):
     x = np.linspace(0, 1, solver.Nx)
     plt.figure(figsize= (8, 6))
@@ -79,6 +85,8 @@ def show_res(solver, save=None):
     if save != None:
         plt.savefig('data/'+save, dpi=400)
 
+# ploter func for mean local iteration of provided solver with ASPEN
+# optional: save = desired filepath to save plot
 def bar_loc(solver, Nd, save = None):
 
     plt.title('mean iters')
@@ -88,6 +96,8 @@ def bar_loc(solver, Nd, save = None):
         plt.savefig('data/' + save, dpi=400)
     plt.show()
 
+# ploter func for local iteration on step = 'step' of provided solver with ASPEN
+# optional: save = desired filepath to save plot
 def bar_loc_step(solver, Nd, step, save = None):
     plt.title('liters on step = {}'.format(step))
     plt.ylim([0, 6])
@@ -96,6 +106,9 @@ def bar_loc_step(solver, Nd, step, save = None):
         plt.savefig(save, dpi=400)
     plt.show()
 
+# ploter func wich comapres number of iterations of several solvers
+# uses in case of ASPEN: global iteration, Newton: iterations
+# optional: save = desired filepath to save plot
 def compare(list_of_solvers, list_of_names, save=None):
     title = ''
 
@@ -116,24 +129,3 @@ def compare(list_of_solvers, list_of_names, save=None):
     if save != None:
         plt.savefig('data/'+save, dpi=400)
     plt.show()
-
-
-def decorator2(obj):
-    def wraper(start_bd, metrics, l_solver):
-        print('--before--')
-        print(start_bd, '{:.2E}'.format(metrics(start_bd)))
-        bd = obj(start_bd, metrics, l_solver)
-        print('--after--')
-        opt = metrics(bd)
-        print(bd, '{:.2E}'.format(opt))
-        return bd, opt
-    return wraper
-
-@decorator2
-def local_search(start_bd, metrics, l_solver):
-    borders = np.copy(start_bd)
-    borders = l_solver.find(borders, metrics, steps = 220)
-    borders = l_solver.find(borders, metrics, steps = 180, cl = False)
-    borders = l_solver.find(borders, metrics, steps = 220)
-
-    return borders

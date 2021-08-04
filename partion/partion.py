@@ -31,7 +31,7 @@ def metrics2(borders, weights):
     return val
 
 
-# a fancy func to construct adjencity matrix
+# a func to construct adjencity matrix
 def adj_matrix(m_ij, Nx, dense = 0):
     f = np.vectorize(m_ij)
 
